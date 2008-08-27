@@ -96,7 +96,7 @@ def ShowInfo(message, title = None):
 Message = {
            #主窗口字符串定义
            "MF001" : u"十字绣转换程序 morphinewan荣誉出品",   #主窗口标题
-           "MF002" : u"选择文件：",   #主窗口Label
+           "MF002" : u"选择目录：",   #主窗口Label
            "MF003" : u"最高颜色数",   #主窗口Label
            "MF004" : u"最低颜色数",   #主窗口Label
            "MF005" : u"背景颜色：",   #主窗口Label

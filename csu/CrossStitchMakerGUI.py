@@ -6,6 +6,7 @@ import pickle,math
 import os,sys
 import Image,ImageDraw,ImageFont
 import threading,time
+import wx
 
 class Logger():
     def __init__(self, output):
@@ -838,7 +839,7 @@ class CrossStitch():
         #回调函数
         callback()
              
-class Application():
+class TkApplication():
     def __init__(self, master):
         __font = ('simsun', 10)
         
@@ -1025,13 +1026,70 @@ class Application():
         self.__SysArgs.mixcolordist = self.mixcolordist.get()
         self.__SysArgs.Save()
 
-def main():
-    root = Tk()
-    root.title(Common.Message["MF001"])
-    root.minsize(660, 550)
-    root.maxsize(660, 550)
-    app = Application(root)
-    root.mainloop()
+class MainFrame(wx.Frame):
+    def __init__(
+            self, parent, ID, title, pos=wx.DefaultPosition,
+            size=wx.DefaultSize, style=wx.DEFAULT_FRAME_STYLE
+            ):
 
+        wx.Frame.__init__(self, parent, ID, title, pos, size, style)
+        panel = wx.Panel(self, -1)
+        
+        #关闭按钮
+        btn_close = wx.Button(panel, -1, Common.Message["MF103"])
+        btn_close.SetPosition((500, 100))
+        self.Bind(wx.EVT_BUTTON, self.OnCloseMe, btn_close)
+        #选择文件
+        wx.StaticText(panel, -1, Common.Message["MF002"]).SetPosition((10, 10))
+        self.txtFilePath = wx.TextCtrl(panel, -1, size=(300,20), style=wx.TE_READONLY)
+        self.txtFilePath.SetPosition((80, 10))
+        btn_browse = wx.Button(panel, -1, Common.Message["MF101"])
+        btn_browse.SetPosition((385, 10))
+        self.Bind(wx.EVT_BUTTON, self.OnChoosePath, btn_browse)
+        
+        #窗口关闭
+        self.Bind(wx.EVT_CLOSE, self.OnCloseWindow)
+
+    
+    def OnChoosePath(self, event):
+        # In this case we include a "New directory" button. 
+        dlg = wx.DirDialog(self, "Choose a directory:",
+                          style=wx.DD_DEFAULT_STYLE
+                           #| wx.DD_DIR_MUST_EXIST
+                           #| wx.DD_CHANGE_DIR
+                           )
+
+        # If the user selects OK, then we process the dialog's data.
+        # This is done by getting the path data from the dialog - BEFORE
+        # we destroy it. 
+        if dlg.ShowModal() == wx.ID_OK:
+            self.txtFilePath.SetValue(dlg.GetPath())
+
+        # Only destroy a dialog after you're done with it.
+        dlg.Destroy()
+    
+    def OnCloseMe(self, event):
+        '''
+        关闭按钮
+        '''
+        self.Close(True)
+
+    def OnCloseWindow(self, event):
+        '''
+        窗口关闭
+        '''
+        self.Destroy()
+
+class Application(wx.App):
+    def OnInit(self):
+        win = MainFrame(None, -1, Common.Message["MF001"], size=(660, 550),
+                  style = wx.DEFAULT_FRAME_STYLE)
+        self.SetTopWindow(win)
+        win.Show(True)
+        return True
+
+def main():
+    Application(0).MainLoop()
+    
 if __name__ == '__main__':
     main()
