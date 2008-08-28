@@ -7,6 +7,7 @@ import os,sys
 import Image,ImageDraw,ImageFont
 import threading,time
 import wx
+import wx.aui
 
 class Logger():
     def __init__(self, output):
@@ -1025,50 +1026,136 @@ class TkApplication():
         self.__SysArgs.antibgcolordist = self.antibgcolordist.get()
         self.__SysArgs.mixcolordist = self.mixcolordist.get()
         self.__SysArgs.Save()
+        
+ID_OpenFile = wx.NewId()
+ID_OpenDirectory = wx.NewId()
+ID_Exit = wx.NewId()
+ID_About = wx.NewId()
+
+ID_PrintScale = wx.NewId()
+ID_PreviewScale = wx.NewId()
+ID_BgColour = wx.NewId()
+ID_MaxColourNum = wx.NewId()
+ID_MinFlossNum = wx.NewId()
+ID_MixColourDist = wx.NewId()
+ID_Width = wx.NewId()
+ID_Height = wx.NewId()
+ID_CT = wx.NewId()
 
 class MainFrame(wx.Frame):
     def __init__(
             self, parent, ID, title, pos=wx.DefaultPosition,
             size=wx.DefaultSize, style=wx.DEFAULT_FRAME_STYLE
             ):
-
+        
         wx.Frame.__init__(self, parent, ID, title, pos, size, style)
-        panel = wx.Panel(self, -1)
         
-        #关闭按钮
-        btn_close = wx.Button(panel, -1, Common.Message["MF103"])
-        btn_close.SetPosition((500, 100))
-        self.Bind(wx.EVT_BUTTON, self.OnCloseMe, btn_close)
-        #选择文件
-        wx.StaticText(panel, -1, Common.Message["MF002"]).SetPosition((10, 10))
-        self.txtFilePath = wx.TextCtrl(panel, -1, size=(300,20), style=wx.TE_READONLY)
-        self.txtFilePath.SetPosition((80, 10))
-        btn_browse = wx.Button(panel, -1, Common.Message["MF101"])
-        btn_browse.SetPosition((385, 10))
-        self.Bind(wx.EVT_BUTTON, self.OnChoosePath, btn_browse)
+#        self.SetBackgroundColour(wx.Colour(red=255, green=255, blue=255) )
         
+        self._mgr = wx.aui.AuiManager()
+        self._mgr.SetManagedWindow(self)
+        #菜单
+        mb = wx.MenuBar()
+        
+        file_menu = wx.Menu()
+        file_menu.Append(ID_OpenFile, "Open File")
+        file_menu.Append(ID_OpenDirectory, "Open Path")
+        file_menu.AppendSeparator()
+        file_menu.Append(ID_Exit, "Exit")
+        
+        mb.Append(file_menu, "File")
+        self.SetMenuBar(mb)
+        import  wx.lib.scrolledpanel as scrolled
+        #左部设置项目
+        option_panel = scrolled.ScrolledPanel(self, -1, size=(180, 400),
+                                 style = wx.TAB_TRAVERSAL|wx.SUNKEN_BORDER, name="option_panel" )
+        option_panel.SetBackgroundColour(wx.Colour(red=255, green=255, blue=255) )
+        sizer = wx.GridBagSizer(vgap=1, hgap=1)
+        
+        input = wx.TextCtrl(option_panel, ID_PrintScale, "1.0", style=wx.TE_RIGHT, size=(35,20))
+        label = wx.StaticText(option_panel, -1, u"打印图片缩放比例")
+        input.SetMaxLength(3)
+        input.Bind(wx.EVT_KEY_DOWN, self.__Validate)
+        sizer.Add(label,pos=(0,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(input,pos=(0,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        input = wx.TextCtrl(option_panel, ID_PreviewScale, "1.0", style=wx.TE_RIGHT, size=(35,20))
+        label = wx.StaticText(option_panel, -1, u"预览图片缩放比例")
+        sizer.Add(label,pos=(1,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(input,pos=(1,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        input = wx.TextCtrl(option_panel, ID_BgColour, "FFFFFF", style=wx.TE_LEFT, size=(35,20))
+        label = wx.StaticText(option_panel, -1, u"背景颜色")
+        sizer.Add(label,pos=(2,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(input,pos=(2,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        input = wx.TextCtrl(option_panel, ID_MaxColourNum, "50", style=wx.TE_RIGHT, size=(35,20))
+        label = wx.StaticText(option_panel, -1, u"最高颜色数")
+        sizer.Add(label,pos=(3,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(input,pos=(3,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        input = wx.TextCtrl(option_panel, ID_MinFlossNum, "20", style=wx.TE_RIGHT, size=(35,20))
+        label = wx.StaticText(option_panel, -1, u"最低颜色数")
+        sizer.Add(label,pos=(4,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(input,pos=(4,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        input = wx.TextCtrl(option_panel, ID_MixColourDist, "20", style=wx.TE_RIGHT, size=(35,20))
+        label = wx.StaticText(option_panel, -1, u"混合颜色距离")
+        sizer.Add(label,pos=(5,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(input,pos=(5,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        input = wx.TextCtrl(option_panel, ID_Width, "20", style=wx.TE_RIGHT, size=(35,20))
+        label = wx.StaticText(option_panel, -1, u"宽度")
+        sizer.Add(label,pos=(6,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(input,pos=(6,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        input = wx.TextCtrl(option_panel, ID_Height, "20", style=wx.TE_RIGHT, size=(35,20))
+        label = wx.StaticText(option_panel, -1, u"高度")
+        sizer.Add(label,pos=(7,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(input,pos=(7,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        input = wx.TextCtrl(option_panel, ID_CT, "20", style=wx.TE_RIGHT, size=(35,20))
+        label = wx.StaticText(option_panel, -1, u"CT")
+        sizer.Add(label,pos=(8,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(input,pos=(8,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        option_panel.SetSizer(sizer)
+        option_panel.SetupScrolling()
+
+        self._mgr.AddPane(option_panel,
+                          wx.aui.AuiPaneInfo().Name("option_panel").Caption(u"选项面板").Left()
+                          .CloseButton(True).TopDockable(False).BottomDockable(False)
+                          .MinimizeButton(True).MaximizeButton(True))
+        
+        #右部工作区
+        work_panel = wx.Panel(self, -1)
+        self._mgr.AddPane(work_panel,
+                          wx.aui.AuiPaneInfo().Name("work_panel").CentrePane().MaximizeButton(True))
+               
+        self._mgr.Update()
         #窗口关闭
         self.Bind(wx.EVT_CLOSE, self.OnCloseWindow)
 
     
-    def OnChoosePath(self, event):
-        # In this case we include a "New directory" button. 
-        dlg = wx.DirDialog(self, "Choose a directory:",
-                          style=wx.DD_DEFAULT_STYLE
-                           #| wx.DD_DIR_MUST_EXIST
-                           #| wx.DD_CHANGE_DIR
-                           )
-
-        # If the user selects OK, then we process the dialog's data.
-        # This is done by getting the path data from the dialog - BEFORE
-        # we destroy it. 
-        if dlg.ShowModal() == wx.ID_OK:
-            self.txtFilePath.SetValue(dlg.GetPath())
-
-        # Only destroy a dialog after you're done with it.
-        dlg.Destroy()
-    
-    def OnCloseMe(self, event):
+        #绑定事件
+        self.Bind(wx.EVT_MENU, self.OnExit, id=ID_Exit)
+        self.Bind(wx.EVT_TEXT, self.OnOpenFile, id=ID_OpenFile)
+       
+        
+    def __Validate(self, event):
+        obj = event.GetEventObject()
+        print obj.GetValue()
+        if obj.GetId() in (ID_PrintScale,) and obj.GetValue() != "" and not Common.IsFloat(obj.GetValue()):
+            obj.SetValue("")
+            return
+        
+        event.Skip()
+            
+            
+    def OnOpenFile(self, event):
+        pass
+            
+    def OnExit(self, event):
         '''
         关闭按钮
         '''
@@ -1079,6 +1166,17 @@ class MainFrame(wx.Frame):
         窗口关闭
         '''
         self.Destroy()
+     
+    class ChildFrame(wx.Frame):
+        '''
+        子窗口名
+        '''
+        def __init__(
+            self, parent, ID, title, pos=wx.DefaultPosition,
+            size=wx.DefaultSize, style=wx.DEFAULT_FRAME_STYLE
+            ):
+            wx.Frame.__init__(self, parent, ID, title, pos, size, style)
+
 
 class Application(wx.App):
     def OnInit(self):
