@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os, sys
 import math
-import tkMessageBox
 import re
 ImageTypes = (".jpg", ".jpeg", ".bmp",".gif", ".png")
 
@@ -82,17 +81,12 @@ def Log(content):
     print content
 
 def IsFloat(s):
-    pattern = '^[1-9]\d*\.\d*|0\.\d*[1-9]\d*|[1-9]\d*$'
+    pattern = '^[1-9]\d*\.\d*$|^0\.\d*[1-9]\d*$|^[1-9]\d*$'
     return re.search(pattern, s) != None
 def IsInt(s):
     pattern = '^[1-9]\d*$'
     return re.search(pattern, s) != None
 
-def ShowError(message, title = None):
-    tkMessageBox.showerror(title or Message["MF201"], message)
-
-def ShowInfo(message, title = None):
-    tkMessageBox.showinfo(title or Message["MF214"], message)
 Message = {
            #主窗口字符串定义
            "MF001" : u"十字绣转换程序 morphinewan荣誉出品",   #主窗口标题

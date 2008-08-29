@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
-from Tkinter import *
 import Common
-import tkFileDialog,tkMessageBox,tkColorChooser 
 import pickle,math
 import os,sys
 import Image,ImageDraw,ImageFont
 import threading,time
-import wx
-import wx.aui
+import wx,wx.aui,wx.lib.scrolledpanel as scrolled,wx.lib.imagebrowser as ib
 
 class Logger():
     def __init__(self, output):
@@ -839,193 +836,6 @@ class CrossStitch():
         self.__logger.Log(Common.Message["MF213"])
         #回调函数
         callback()
-             
-class TkApplication():
-    def __init__(self, master):
-        __font = ('simsun', 10)
-        
-        control_frame = Frame(master)
-        control_frame.grid(row=0, column=0, sticky=NW)
-        
-        log_frame = Frame(master)
-        log_frame.grid(row=1, column=0, columnspan=2)        
-        scrollbar = Scrollbar(log_frame)
-        scrollbar.pack(side=RIGHT, fill=Y)
-        self.log = Text(log_frame, font=__font, width=90, state=DISABLED, yscrollcommand=scrollbar.set)
-        self.log.pack(side=LEFT, fill=BOTH)               
-        scrollbar.config(command=self.log.yview)
-                
-        sub_frame1 = Frame(control_frame)
-        sub_frame1.grid(row=0, column=0, sticky=W, pady=5)        
-        #文件上传框 Label
-        Label(sub_frame1, font=__font, text=Common.Message["MF002"]).grid(row=0, column = 0, sticky=W)
-        #文件上传框
-        self.filepath = StringVar()
-        Entry(sub_frame1, font=__font, width=50, state='readonly', textvariable=self.filepath).grid(row = 0, column = 1, sticky=W) 
-         
-        #选择文件按钮
-        Button(sub_frame1, font=__font, command=self.__BtnBrowseFile_OnClick, text=Common.Message["MF101"]).grid(row=0, column = 2, padx=5)
-        
-        #选择项目
-        sub_frame2 = Frame(control_frame)
-        sub_frame2.grid(row=1, column=0, sticky=W, pady=5)
-        #切除空白边
-        self.cropside = IntVar()
-        Checkbutton(sub_frame2, font=__font, text=Common.Message["MF006"], variable=self.cropside).grid(row = 0, column = 0, sticky=W)
-        #反噪点
-        self.antinoise = IntVar()
-        Checkbutton(sub_frame2, font=__font, text=Common.Message["MF007"], variable=self.antinoise).grid(row = 0, column = 1, sticky=W)
-        #除去类似于背景色的像素定义
-        self.antibgcolor = IntVar()
-        Checkbutton(sub_frame2, font=__font, text=Common.Message["MF008"], variable=self.antibgcolor).grid(row = 0, column = 2, sticky=W)
-        self.antibgcolordist = IntVar()
-        Entry(sub_frame2, font=__font, width=3, justify=RIGHT, textvariable=self.antibgcolordist).grid(row=0, column=3, sticky=W)
-        #只输出预览图
-        self.onlypreview = IntVar()
-        Checkbutton(sub_frame2, font=__font, text=Common.Message["MF009"], variable=self.onlypreview).grid(row = 1, column = 0, sticky=W)
-        #输出预览图符合淘宝要求500×500像素
-        self.fortaobao = IntVar()
-        Checkbutton(sub_frame2, font=__font, text=Common.Message["MF010"], variable=self.fortaobao).grid(row = 1, column = 1, sticky=W)
-        #禁止输出背景色
-        self.disabledbgcolor = IntVar()
-        Checkbutton(sub_frame2, font=__font, text=Common.Message["MF011"], variable=self.disabledbgcolor).grid(row = 1, column = 2, sticky=W)
-        sub_frame3 = Frame(control_frame)
-        sub_frame3.grid(row=2, column=0, sticky=W, pady=5)
-        #打印图片缩放比例
-        Label(sub_frame3, font=__font, text=Common.Message["MF012"]).grid(row=0, column=0, sticky=W)
-        self.printimagescale = DoubleVar()
-        Entry(sub_frame3, font=__font, width=4, justify=RIGHT, textvariable=self.printimagescale).grid(row=0, column=1, sticky=W)
-        #预览图片缩放比例
-        Label(sub_frame3, font=__font, text=Common.Message["MF013"]).grid(row=0, column=2, sticky=W)
-        self.previewimagescale = DoubleVar()
-        Entry(sub_frame3, font=__font, width=4, justify=RIGHT, textvariable=self.previewimagescale).grid(row=0, column=3, sticky=W)
-        #背景颜色，默认为白色
-        Label(sub_frame3, font=__font, text=Common.Message["MF005"]).grid(row=0, column = 4, sticky=W)
-        self.bgcolor = StringVar()
-        colorpicker = Entry(sub_frame3, font=__font, width=6, justify=RIGHT, state='readonly', textvariable=self.bgcolor)
-        colorpicker.grid(row=0, column = 5, sticky=W)
-        colorpicker.bind("<Double-Button-1>", self.__PickColor)
-        #最高颜色数
-        Label(sub_frame3, font=__font, text=Common.Message["MF003"]).grid(row=1, column = 0, sticky=W)
-        self.maxflossnum = IntVar()
-        Entry(sub_frame3, font=__font, width=4, justify=RIGHT, textvariable=self.maxflossnum).grid(row=1, column = 1, sticky=W)
-        #最少颜色数
-        Label(sub_frame3, font=__font, text=Common.Message["MF004"]).grid(row=1, column = 2, sticky=W)
-        self.mincolorused = IntVar()
-        Entry(sub_frame3, font=__font, width=4, justify=RIGHT, textvariable=self.mincolorused).grid(row=1, column = 3, sticky=W)  
-        #混合颜色距离
-        Label(sub_frame3, font=__font, text=Common.Message["MF017"]).grid(row=1, column = 4, sticky=W)
-        self.mixcolordist = DoubleVar()
-        Entry(sub_frame3, font=__font, width=4, justify=RIGHT, textvariable=self.mixcolordist).grid(row=1, column = 5, sticky=W)  
-        
-        #宽度
-        Label(sub_frame3, font=__font, text=Common.Message["MF014"]).grid(row=2, column = 0, sticky=W)
-        self.width = StringVar()
-        Entry(sub_frame3, font=__font, width=5, justify=RIGHT, textvariable=self.width).grid(row=2, column = 1, sticky=W)
-        #高度
-        Label(sub_frame3, font=__font, text=Common.Message["MF015"]).grid(row=2, column = 2, sticky=W)
-        self.height = StringVar()
-        Entry(sub_frame3, font=__font, width=5, justify=RIGHT, textvariable=self.height).grid(row=2, column = 3, sticky=W)        
-        #CT
-        Label(sub_frame3, font=__font, text=Common.Message["MF016"]).grid(row=2, column = 4, sticky=W)
-        self.ct = IntVar()
-        Entry(sub_frame3, font=__font, width=3, justify=RIGHT, textvariable=self.ct).grid(row=2, column = 5, sticky=W)        
-        
-        button_frame = Frame(master)
-        button_frame.grid(row=0, column=1, sticky=NW, padx=5, pady =5)
-        #转换按钮
-        self.btntransfer = Button(button_frame, font=__font, command=self.__Transfer, width=15, height=4, text=Common.Message["MF102"])
-        self.btntransfer.grid(row=0, column = 0)
-        #批量按钮
-        self.btnbatch = Button(button_frame, font=__font, command=self.__Batch, width=15, height=4, text=Common.Message["MF104"])
-        self.btnbatch.grid(row=1, column = 0, pady = 5)
-        #退出按钮
-        self.btnquit = Button(button_frame, font=__font, command=master.quit, width=15, height=4, text=Common.Message["MF103"])
-        self.btnquit.grid(row=2, column = 0, pady = 5)
-        #程序配置初始化
-        self.__SysArgs = SysArgs()
-        self.width.set(self.__SysArgs.size[0])
-        self.height.set(self.__SysArgs.size[1])
-        self.maxflossnum.set(self.__SysArgs.maxflossnum)
-        self.mincolorused.set(self.__SysArgs.mincolorused)
-        self.bgcolor.set(self.__SysArgs.bgcolor)
-        self.cropside.set(self.__SysArgs.cropside)
-        self.printimagescale.set(self.__SysArgs.printimagescale)
-        self.previewimagescale.set(self.__SysArgs.previewimagescale)
-        self.antinoise.set(self.__SysArgs.antinoise)
-        self.antibgcolor.set(self.__SysArgs.antibgcolor)
-        self.onlypreview.set(self.__SysArgs.onlypreview)
-        self.fortaobao.set(self.__SysArgs.fortaobao)
-        self.disabledbgcolor.set(self.__SysArgs.disabledbgcolor)
-        self.filepath.set(self.__SysArgs.path)
-        self.ct.set(self.__SysArgs.ct)
-        self.antibgcolordist.set(self.__SysArgs.antibgcolordist)
-        self.mixcolordist.set(self.__SysArgs.mixcolordist)
-        
-        #加载CS对象，实现多线程预载Flossmap
-        self.cs = CrossStitch(self.__SysArgs, Logger(self.log))
-        self.__DisableForm()
-        threading.Thread(target=self.cs.Init, args=(self.__EnableForm,)).start()
-        
-    def __PickColor(self, event):
-        colordialog = tkColorChooser.askcolor("#%s" % self.bgcolor.get())
-        if colordialog[0]:
-            self.bgcolor.set(Common.RGB2Hex(colordialog[0]))
-    
-    def __BtnBrowseFile_OnClick(self):
-        file_name = tkFileDialog.askopenfilename(initialdir=self.filepath.get())
-        if file_name:
-            self.filepath.set(file_name)
-    
-    
-    def __Transfer(self):
-        #保存参数
-        self.__SaveSysargs()
-        if self.__ValidateForm():
-            self.__DisableForm()
-            threading.Thread(target=self.cs.MakeCrossStitch, args=([self.filepath.get()], self.__EnableForm)).start()
-    
-    def __Batch(self):
-        #保存参数
-        self.__SaveSysargs()
-        if self.__ValidateForm():
-            self.__DisableForm()
-            threading.Thread(target=self.cs.MakeCrossStitch, args=(Common.GetAllImageFile(self.filepath.get()), self.__EnableForm)).start()
-                     
-    def __ValidateForm(self):
-        if not self.__SysArgs.path:
-            Common.ShowError(Common.Message["MF302"])
-            return False
-        return True
-    def __DisableForm(self):
-        #按钮状态变更
-        self.btntransfer.config(state=DISABLED)
-        self.btnquit.config(state=DISABLED)
-        self.btnbatch.config(state=DISABLED)
-        
-    def __EnableForm(self):
-        self.btntransfer.config(state=NORMAL)
-        self.btnquit.config(state=NORMAL)
-        self.btnbatch.config(state=NORMAL)
-        
-    def __SaveSysargs(self):
-        self.__SysArgs.size = (self.width.get(), self.height.get())
-        self.__SysArgs.maxflossnum = self.maxflossnum.get()
-        self.__SysArgs.mincolorused = self.mincolorused.get()
-        self.__SysArgs.bgcolor = self.bgcolor.get()
-        self.__SysArgs.cropside = self.cropside.get()
-        self.__SysArgs.printimagescale = self.printimagescale.get()
-        self.__SysArgs.previewimagescale = self.previewimagescale.get()
-        self.__SysArgs.antinoise = self.antinoise.get()
-        self.__SysArgs.antibgcolor = self.antibgcolor.get()
-        self.__SysArgs.onlypreview = self.onlypreview.get()
-        self.__SysArgs.fortaobao = self.fortaobao.get()
-        self.__SysArgs.disabledbgcolor = self.disabledbgcolor.get()
-        self.__SysArgs.path = self.filepath.get()
-        self.__SysArgs.ct = self.ct.get()
-        self.__SysArgs.antibgcolordist = self.antibgcolordist.get()
-        self.__SysArgs.mixcolordist = self.mixcolordist.get()
-        self.__SysArgs.Save()
         
 ID_OpenFile = wx.NewId()
 ID_OpenDirectory = wx.NewId()
@@ -1042,16 +852,20 @@ ID_Width = wx.NewId()
 ID_Height = wx.NewId()
 ID_CT = wx.NewId()
 
+ID_CropSide = wx.NewId()
+ID_AntiNoise = wx.NewId()
+ID_AntiBgColour = wx.NewId()
+ID_OnlyPreview = wx.NewId()
+ID_ForTaobao = wx.NewId()
+ID_DisabledBgColour = wx.NewId()
+
 class MainFrame(wx.Frame):
     def __init__(
             self, parent, ID, title, pos=wx.DefaultPosition,
             size=wx.DefaultSize, style=wx.DEFAULT_FRAME_STYLE
             ):
         
-        wx.Frame.__init__(self, parent, ID, title, pos, size, style)
-        
-#        self.SetBackgroundColour(wx.Colour(red=255, green=255, blue=255) )
-        
+        wx.Frame.__init__(self, parent, ID, title, pos, size, style)        
         self._mgr = wx.aui.AuiManager()
         self._mgr.SetManagedWindow(self)
         #菜单
@@ -1065,67 +879,102 @@ class MainFrame(wx.Frame):
         
         mb.Append(file_menu, "File")
         self.SetMenuBar(mb)
-        import  wx.lib.scrolledpanel as scrolled
         #左部设置项目
-        option_panel = scrolled.ScrolledPanel(self, -1, size=(180, 400),
+        option_panel = scrolled.ScrolledPanel(self, -1, size=(160, 400),
                                  style = wx.TAB_TRAVERSAL|wx.SUNKEN_BORDER, name="option_panel" )
         option_panel.SetBackgroundColour(wx.Colour(red=255, green=255, blue=255) )
         sizer = wx.GridBagSizer(vgap=1, hgap=1)
         
-        input = wx.TextCtrl(option_panel, ID_PrintScale, "1.0", style=wx.TE_RIGHT, size=(35,20))
+        input = wx.TextCtrl(option_panel, ID_PrintScale, "1.0", style=wx.TE_RIGHT, size=(45,20))
         label = wx.StaticText(option_panel, -1, u"打印图片缩放比例")
         input.SetMaxLength(3)
-        input.Bind(wx.EVT_KEY_DOWN, self.__Validate)
         sizer.Add(label,pos=(0,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
         sizer.Add(input,pos=(0,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
         
-        input = wx.TextCtrl(option_panel, ID_PreviewScale, "1.0", style=wx.TE_RIGHT, size=(35,20))
+        input = wx.TextCtrl(option_panel, ID_PreviewScale, "1.0", style=wx.TE_RIGHT, size=(45,20))
         label = wx.StaticText(option_panel, -1, u"预览图片缩放比例")
+        input.SetMaxLength(3)
         sizer.Add(label,pos=(1,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
         sizer.Add(input,pos=(1,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
         
-        input = wx.TextCtrl(option_panel, ID_BgColour, "FFFFFF", style=wx.TE_LEFT, size=(35,20))
+        input = wx.TextCtrl(option_panel, ID_BgColour, "FFFFFF", style=wx.TE_LEFT | wx.TE_READONLY, size=(45,20))
         label = wx.StaticText(option_panel, -1, u"背景颜色")
+        input.SetMaxLength(6)
         sizer.Add(label,pos=(2,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
         sizer.Add(input,pos=(2,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
         
-        input = wx.TextCtrl(option_panel, ID_MaxColourNum, "50", style=wx.TE_RIGHT, size=(35,20))
+        input = wx.TextCtrl(option_panel, ID_MaxColourNum, "50", style=wx.TE_RIGHT, size=(45,20))
         label = wx.StaticText(option_panel, -1, u"最高颜色数")
+        input.SetMaxLength(3)
         sizer.Add(label,pos=(3,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
         sizer.Add(input,pos=(3,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
         
-        input = wx.TextCtrl(option_panel, ID_MinFlossNum, "20", style=wx.TE_RIGHT, size=(35,20))
+        input = wx.TextCtrl(option_panel, ID_MinFlossNum, "20", style=wx.TE_RIGHT, size=(45,20))
         label = wx.StaticText(option_panel, -1, u"最低颜色数")
+        input.SetMaxLength(3)
         sizer.Add(label,pos=(4,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
         sizer.Add(input,pos=(4,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
         
-        input = wx.TextCtrl(option_panel, ID_MixColourDist, "20", style=wx.TE_RIGHT, size=(35,20))
+        input = wx.TextCtrl(option_panel, ID_MixColourDist, "20", style=wx.TE_RIGHT, size=(45,20))
         label = wx.StaticText(option_panel, -1, u"混合颜色距离")
+        input.SetMaxLength(3)
         sizer.Add(label,pos=(5,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
         sizer.Add(input,pos=(5,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
         
-        input = wx.TextCtrl(option_panel, ID_Width, "20", style=wx.TE_RIGHT, size=(35,20))
+        input = wx.TextCtrl(option_panel, ID_Width, "20", style=wx.TE_RIGHT, size=(45,20))
         label = wx.StaticText(option_panel, -1, u"宽度")
+        input.SetMaxLength(3)
         sizer.Add(label,pos=(6,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
         sizer.Add(input,pos=(6,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
         
-        input = wx.TextCtrl(option_panel, ID_Height, "20", style=wx.TE_RIGHT, size=(35,20))
+        input = wx.TextCtrl(option_panel, ID_Height, "20", style=wx.TE_RIGHT, size=(45,20))
         label = wx.StaticText(option_panel, -1, u"高度")
+        input.SetMaxLength(3)
         sizer.Add(label,pos=(7,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
         sizer.Add(input,pos=(7,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
         
-        input = wx.TextCtrl(option_panel, ID_CT, "20", style=wx.TE_RIGHT, size=(35,20))
+        input = wx.TextCtrl(option_panel, ID_CT, "20", style=wx.TE_RIGHT, size=(45,20))
         label = wx.StaticText(option_panel, -1, u"CT")
+        input.SetMaxLength(2)
         sizer.Add(label,pos=(8,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
         sizer.Add(input,pos=(8,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
         
+        checkbox = wx.CheckBox(option_panel, ID_CropSide, "")
+        label = wx.StaticText(option_panel, -1, u"切除边缘空白")
+        sizer.Add(label,pos=(9,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(checkbox, pos=(9, 1), flag=wx.ALIGN_CENTER | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        checkbox = wx.CheckBox(option_panel, ID_AntiNoise, "")
+        label = wx.StaticText(option_panel, -1, u"去除噪点")
+        sizer.Add(label,pos=(10,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(checkbox, pos=(10, 1), flag=wx.ALIGN_CENTER | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        checkbox = wx.CheckBox(option_panel, ID_OnlyPreview, "")
+        label = wx.StaticText(option_panel, -1, u"只输出预览图片")
+        sizer.Add(label,pos=(11,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(checkbox, pos=(11, 1), flag=wx.ALIGN_CENTER | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        checkbox = wx.CheckBox(option_panel, ID_ForTaobao, "")
+        label = wx.StaticText(option_panel, -1, u"淘宝上传图片模式")
+        sizer.Add(label,pos=(12,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(checkbox, pos=(12, 1), flag=wx.ALIGN_CENTER | wx.FIXED_MINSIZE | wx.ALL , border=1)
+                
+        checkbox = wx.CheckBox(option_panel, ID_AntiBgColour, "")
+        label = wx.StaticText(option_panel, -1, u"去除背景颜色")
+        sizer.Add(label,pos=(13,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(checkbox, pos=(13, 1), flag=wx.ALIGN_CENTER | wx.FIXED_MINSIZE | wx.ALL , border=1)
+        
+        checkbox = wx.CheckBox(option_panel, ID_DisabledBgColour, "")
+        label = wx.StaticText(option_panel, -1, u"禁止输出背景颜色")
+        sizer.Add(label,pos=(14,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
+        sizer.Add(checkbox, pos=(14, 1), flag=wx.ALIGN_CENTER | wx.FIXED_MINSIZE | wx.ALL , border=1)
+   
         option_panel.SetSizer(sizer)
         option_panel.SetupScrolling()
 
         self._mgr.AddPane(option_panel,
                           wx.aui.AuiPaneInfo().Name("option_panel").Caption(u"选项面板").Left()
-                          .CloseButton(True).TopDockable(False).BottomDockable(False)
-                          .MinimizeButton(True).MaximizeButton(True))
+                          .CloseButton(True).TopDockable(False).BottomDockable(False).MaximizeButton(True))
         
         #右部工作区
         work_panel = wx.Panel(self, -1)
@@ -1134,40 +983,81 @@ class MainFrame(wx.Frame):
                
         self._mgr.Update()
         #窗口关闭
-        self.Bind(wx.EVT_CLOSE, self.OnCloseWindow)
+        self.Bind(wx.EVT_CLOSE, self.__OnCloseWindow)
 
     
         #绑定事件
-        self.Bind(wx.EVT_MENU, self.OnExit, id=ID_Exit)
-        self.Bind(wx.EVT_TEXT, self.OnOpenFile, id=ID_OpenFile)
-       
+        self.Bind(wx.EVT_MENU, self.__OnExit, id=ID_Exit)
+        self.Bind(wx.EVT_MENU, self.__OnOpenFile, id=ID_OpenFile)
+        self.FindWindowById(ID_BgColour).Bind(wx.EVT_LEFT_DCLICK, self.__PickupColour)
         
-    def __Validate(self, event):
-        obj = event.GetEventObject()
-        print obj.GetValue()
-        if obj.GetId() in (ID_PrintScale,) and obj.GetValue() != "" and not Common.IsFloat(obj.GetValue()):
-            obj.SetValue("")
-            return
+    def __ValidateForm(self):
+        #校验浮点数
+        for id in (ID_PrintScale, ID_PreviewScale):
+            obj = self.FindWindowById(id)
+            if not Common.IsFloat(obj.GetValue()):
+                self.__ShowError(u"请输入正小数。")
+                obj.SetFocus()
+                obj.SetSelection(-1, -1)
+                return False
+        for id in (ID_MaxColourNum, ID_MinFlossNum, ID_MixColourDist, 
+                   ID_Width, ID_Height, ID_CT):
+            obj = self.FindWindowById(id)
+            if not Common.IsInt(obj.GetValue()):
+                self.__ShowError(u"请输入正整数。")
+                obj.SetFocus()
+                obj.SetSelection(-1, -1)
+                return False
+        return True            
+            
+    def __OnOpenFile(self, event):
+        # get current working directory
+        dir = os.getcwd()
+
+        # open the image browser dialog
+        dlg = ib.ImageDialog(self, dir)
+
+        dlg.Centre()
+
+        if dlg.ShowModal() == wx.ID_OK:
+            # show the selected file
+            self.log.WriteText("You Selected File: " + dlg.GetFile())        
+        else:
+            self.log.WriteText("You pressed Cancel\n")
+
+        dlg.Destroy()
         
-        event.Skip()
+    def __PickupColour(self, event):
+        dlg = wx.ColourDialog(self)
+        dlg.GetColourData().SetChooseFull(True)
+        if dlg.ShowModal() == wx.ID_OK:
+            data = dlg.GetColourData()
+            event.GetEventObject().SetValue(Common.RGB2Hex(data.GetColour().Get()))
+        dlg.Destroy()
             
-            
-    def OnOpenFile(self, event):
-        pass
-            
-    def OnExit(self, event):
+    def __OnExit(self, event):
         '''
         关闭按钮
         '''
         self.Close(True)
 
-    def OnCloseWindow(self, event):
+    def __OnCloseWindow(self, event):
         '''
         窗口关闭
         '''
         self.Destroy()
      
-    class ChildFrame(wx.Frame):
+    def __ShowError(self, message, title = None):
+        dlg = wx.MessageDialog(self, message, title or Common.Message["MF201"], style= wx.OK | wx.ICON_ERROR)
+        dlg.ShowModal()
+        dlg.Destroy()
+        
+    def __ShowInfo(self, message, title = None):
+        dlg = wx.MessageDialog(self, message, title or Common.Message["MF214"], style= wx.OK | wx.ICON_INFORMATION)
+        dlg.ShowModal()
+        dlg.Destroy()
+    
+    class __ChildFrame(wx.Frame):
         '''
         子窗口名
         '''
