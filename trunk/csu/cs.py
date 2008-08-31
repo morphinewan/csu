@@ -3,7 +3,9 @@ import os
 import wx,wx.aui
 import wx.lib.scrolledpanel as scrolled
 import wx.lib.imagebrowser as ib
+import threading
 import lib.func as func
+import lib.cross_stitch as cs
 
 ID_OpenFile = wx.NewId()
 ID_OpenFile_ToolBar = wx.NewId()
@@ -28,8 +30,9 @@ ID_ForTaobao = wx.NewId()
 ID_DisabledBgColour = wx.NewId()
 
 ID_WorkPanel = wx.NewId()
-ID_ImageReviewPanel = wx.NewId()
 ID_ImageReview = wx.NewId()
+
+
 class MainFrame(wx.Frame):
     def __init__(
             self, parent, ID, title, pos=wx.DefaultPosition,
@@ -56,7 +59,7 @@ class MainFrame(wx.Frame):
         toolbar.AddLabelTool(ID_OpenFile_ToolBar, u"打开文件", wx.ArtProvider_GetBitmap(wx.ART_FILE_OPEN))
         toolbar.Realize()
         self._mgr.AddPane(toolbar, wx.aui.AuiPaneInfo().
-                          Name("toolbar").Caption("Big Toolbar").
+                          Name("toolbar").Caption(u"文件工具栏").
                           ToolbarPane().Top().
                           LeftDockable(False).RightDockable(False))
         #左部设置项目
@@ -157,15 +160,22 @@ class MainFrame(wx.Frame):
                           .CloseButton(True).TopDockable(False).BottomDockable(False).MaximizeButton(True))
         
         #右部工作区
-        work_panel = wx.Panel(self, ID_WorkPanel)
+#        scrolled.ScrolledPanel(work_panel, ID_ImageReviewPanel, size=(size.GetWidth(),size.GetHeight()),
+#                                      style = wx.TAB_TRAVERSAL|wx.SUNKEN_BORDER)
+        work_panel = scrolled.ScrolledPanel(self, ID_WorkPanel)
+        work_panel.SetAutoLayout(1)
+        work_panel.SetupScrolling()
         self._mgr.AddPane(work_panel,
                           wx.aui.AuiPaneInfo().Name("work_panel").CentrePane().MaximizeButton(True))
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        work_panel.SetSizer(sizer)
+        
         self._mgr.Update()
+        
+        #状态
+        status_bar = self.CreateStatusBar(number = 1, name="statusbar")
+#        status_bar.SetStatusWidths([300, -1])
+        
         #窗口关闭
         self.Bind(wx.EVT_CLOSE, self.__CloseWindow)
-
     
         #绑定事件
         self.Bind(wx.EVT_MENU, self.__Exit, id=ID_Exit)
@@ -176,15 +186,19 @@ class MainFrame(wx.Frame):
         #定义待处理的图片数组
         self.__images = []
         
+        #异步加载配置信息
+#        self.FindWindowByName("statusbar").SetStatusText(u"异步读取绣线色彩映射表设定", 0)
+        self.__flossmap = cs.FlossMap()
+        threading.Thread(target=self.__flossmap.Load, args=(self.__FlossMapLoadCallback,)).start()
+        
+    def __FlossMapLoadCallback(self):
+        self.FindWindowByName("statusbar").SetStatusText(u"异步读取绣线色彩映射表设定已经完成", 0)
+        
     def __RereshWorkPanel(self, event):
         '''
             工作面板改变大小
         '''
-        panel = event.GetEventObject()
-        obj = self.FindWindowById(ID_ImageReviewPanel)
-        if obj:
-            size = panel.GetVirtualSize()
-            obj.SetSize(size)
+        if self.FindWindowById(ID_ImageReview):
             self.FindWindowById(ID_ImageReview).CentreOnParent(wx.BOTH)
             
         
@@ -211,7 +225,7 @@ class MainFrame(wx.Frame):
         wildcard = "All image files (*.bmp;*.gif;*.jpg;*.jpeg;*.png)|" \
                 "*.bmp;*.gif;*.jpg;*.jpeg;*.png"
         dlg = wx.FileDialog(
-            self, message="Choose a file",
+            self, message=u"选择文件",
             defaultDir=os.getcwd(), 
             defaultFile="",
             wildcard=wildcard,
@@ -226,6 +240,9 @@ class MainFrame(wx.Frame):
         self.__LoadImage()
         
     def __PickupColour(self, event):
+        '''
+        选择颜色
+        '''
         dlg = wx.ColourDialog(self)
         dlg.GetColourData().SetChooseFull(True)
         if dlg.ShowModal() == wx.ID_OK:
@@ -266,15 +283,15 @@ class MainFrame(wx.Frame):
             
             
             #图像预览用Panel做成
-            size = work_panel.GetVirtualSize()
-            panel1 = scrolled.ScrolledPanel(work_panel, ID_ImageReviewPanel, size=(size.GetWidth(),size.GetHeight()),
-                                      style = wx.TAB_TRAVERSAL|wx.SUNKEN_BORDER)
+#            size = work_panel.GetVirtualSize()
+#            panel1 = scrolled.ScrolledPanel(work_panel, ID_ImageReviewPanel, size=(size.GetWidth(),size.GetHeight()),
+#                                      style = wx.TAB_TRAVERSAL|wx.SUNKEN_BORDER)
             img = wx.Image(self.__images[0])
-            wx.StaticBitmap(panel1, ID_ImageReview, wx.BitmapFromImage(img)).CentreOnParent(wx.BOTH)
-            panel1.Refresh()
+            wx.StaticBitmap(work_panel, ID_ImageReview, wx.BitmapFromImage(img)).CentreOnParent(wx.BOTH)
+            work_panel.Refresh()
             
-            work_panel.GetSizer().Add(panel1, flag=wx.ALIGN_CENTER | wx.TOP)
-            work_panel.Fit()
+#            work_panel.GetSizer().Add(panel1, flag=wx.ALIGN_CENTER | wx.TOP)
+#            work_panel.Fit()
             
 class Application(wx.App):
     def OnInit(self):
