@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import re
-ImageTypes = (".jpg", ".jpeg", ".bmp",".gif", ".png")
+import os,sys
+import cPickle as pickle
+
 def RGB2Hex(rgb):
     return "%02X%02X%02X" % rgb
 
@@ -14,3 +16,37 @@ def IsFloat(s):
 def IsInt(s):
     pattern = '^[1-9]\d*$'
     return re.search(pattern, s) != None
+
+def GetPathName(s):
+    '''
+    返回路径
+    '''
+    if os.path.isdir(s):
+        return s
+    elif os.path.isfile(s):
+        return os.path.split(s)[0]
+    else:
+        return None
+    
+def GetAppPath():
+    return GetPathName(sys.argv[0])
+    
+def SaveToDisk(obj, filename):
+    '''
+    把对象保存到硬盘
+    '''
+    f = open(filename, 'w')
+    pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+    f.close()
+
+def LoadFromDisk(filename):
+    '''
+    从硬盘加载对象
+    '''
+    if os.path.exists(filename) and os.path.isfile(filename):
+        f = open(filename, 'r')
+        result = pickle.load(f)
+        f.close()
+    else:
+        result = None
+    return result

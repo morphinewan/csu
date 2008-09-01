@@ -3,35 +3,14 @@ import os
 import wx,wx.aui
 import wx.lib.scrolledpanel as scrolled
 import wx.lib.imagebrowser as ib
+import wx.combo
 import threading
-import lib.func as func
+import lib.func as Common
 import lib.cross_stitch as cs
+from cs_define_id import *
 
-ID_OpenFile = wx.NewId()
-ID_OpenFile_ToolBar = wx.NewId()
-ID_Exit = wx.NewId()
-ID_About = wx.NewId()
-
-ID_PrintScale = wx.NewId()
-ID_PreviewScale = wx.NewId()
-ID_BgColour = wx.NewId()
-ID_MaxColourNum = wx.NewId()
-ID_MinFlossNum = wx.NewId()
-ID_MixColourDist = wx.NewId()
-ID_Width = wx.NewId()
-ID_Height = wx.NewId()
-ID_CT = wx.NewId()
-
-ID_CropSide = wx.NewId()
-ID_AntiNoise = wx.NewId()
-ID_AntiBgColour = wx.NewId()
-ID_OnlyPreview = wx.NewId()
-ID_ForTaobao = wx.NewId()
-ID_DisabledBgColour = wx.NewId()
-
-ID_WorkPanel = wx.NewId()
-ID_ImageReview = wx.NewId()
-
+#系统设置
+Application_Settings = {}
 
 class MainFrame(wx.Frame):
     def __init__(
@@ -46,24 +25,59 @@ class MainFrame(wx.Frame):
         mb = wx.MenuBar()
         
         file_menu = wx.Menu()
-        file_menu.Append(ID_OpenFile, u"打开文件")
+        file_menu.Append(ID_OpenFile, u"打开文件", u"导入图片文件")
         file_menu.AppendSeparator()
-        file_menu.Append(ID_Exit, u"关闭")
-        
+        file_menu.Append(ID_Exit, u"关闭", u"关闭并退出程序")        
         mb.Append(file_menu, u"文件")
+        
+        view_menu = wx.Menu()
+        sub_menu = wx.Menu()
+        menu_item = sub_menu.AppendCheckItem(ID_View_Sub_OptionPanel, u"选项面板", u"打开或者关闭选项面板")
+        menu_item.Check(1)
+        view_menu.AppendSubMenu(sub_menu, u"面板")
+        mb.Append(view_menu, u"查看")
+        
+        self.Bind(wx.EVT_MENU, self.__MenuClick, id=ID_View_Sub_OptionPanel)
+        
         self.SetMenuBar(mb)
         #Toolbar
         toolbar = wx.ToolBar(self, -1, wx.DefaultPosition, wx.DefaultSize,
                          wx.TB_FLAT | wx.TB_NODIVIDER | wx.TB_HORZ_TEXT)
         toolbar.SetToolBitmapSize(wx.Size(16,16))
-        toolbar.AddLabelTool(ID_OpenFile_ToolBar, u"打开文件", wx.ArtProvider_GetBitmap(wx.ART_FILE_OPEN))
+        toolbar.AddLabelTool(ID_File_Open_ToolBar, u"打开文件", wx.ArtProvider_GetBitmap(wx.ART_FILE_OPEN))
+        toolbar.AddLabelTool(ID_Exit, u"关闭", wx.ArtProvider_GetBitmap(wx.ART_QUIT))
         toolbar.Realize()
         self._mgr.AddPane(toolbar, wx.aui.AuiPaneInfo().
-                          Name("toolbar").Caption(u"文件工具栏").
+                          Name("toolbar").Caption(u"文件").
+                          ToolbarPane().Top().
+                          LeftDockable(False).RightDockable(False))
+        
+        toolbar = wx.ToolBar(self, -1, wx.DefaultPosition, wx.DefaultSize,
+                         wx.TB_FLAT | wx.TB_NODIVIDER | wx.TB_HORZ_TEXT)
+        toolbar.SetToolBitmapSize(wx.Size(16,16))
+        toolbar.AddLabelTool(ID_ToolBar_View_OptionPanel, u"隐藏选项面板", wx.ArtProvider_GetBitmap(wx.ART_FOLDER))
+        toolbar.Realize()
+        self._mgr.AddPane(toolbar, wx.aui.AuiPaneInfo().
+                          Name("viewbar").Caption(u"查看").
+                          ToolbarPane().Top().
+                          LeftDockable(False).RightDockable(False))
+        
+        toolbar = wx.ToolBar(self, -1, wx.DefaultPosition, wx.DefaultSize,
+                         wx.TB_FLAT | wx.TB_NODIVIDER | wx.TB_HORZ_TEXT)
+        toolbar.AddControl(wx.StaticText(toolbar, -1, u"缩放"))
+        choices = []
+        for i in range(10, 210, 10):
+            choices.append("%d%%" % i)
+        combo = wx.ComboBox(toolbar, ID_Image_Zoom, value="100%",choices=choices)        
+        toolbar.AddControl(combo)
+        toolbar.Realize()
+        combo.Enable(False)
+        self._mgr.AddPane(toolbar, wx.aui.AuiPaneInfo().
+                          Name("picturebar").Caption(u"图片").
                           ToolbarPane().Top().
                           LeftDockable(False).RightDockable(False))
         #左部设置项目
-        option_panel = scrolled.ScrolledPanel(self, -1, size=(160, 400),
+        option_panel = wx.Panel(self, ID_OptionPanel, size=(160, 400),
                                  style = wx.TAB_TRAVERSAL|wx.SUNKEN_BORDER, name="option_panel" )
         option_panel.SetBackgroundColour(wx.Colour(red=255, green=255, blue=255) )
         sizer = wx.GridBagSizer(vgap=1, hgap=1)
@@ -153,18 +167,13 @@ class MainFrame(wx.Frame):
         sizer.Add(checkbox, pos=(14, 1), flag=wx.ALIGN_CENTER | wx.FIXED_MINSIZE | wx.ALL , border=1)
    
         option_panel.SetSizer(sizer)
-        option_panel.SetupScrolling()
 
         self._mgr.AddPane(option_panel,
-                          wx.aui.AuiPaneInfo().Name("option_panel").Caption(u"选项面板").Left()
-                          .CloseButton(True).TopDockable(False).BottomDockable(False).MaximizeButton(True))
+                          wx.aui.AuiPaneInfo().Name("option_panel").Caption(u"选项").Left()
+                          .CloseButton(False).TopDockable(False).BottomDockable(False).MaximizeButton(True))
         
         #右部工作区
-#        scrolled.ScrolledPanel(work_panel, ID_ImageReviewPanel, size=(size.GetWidth(),size.GetHeight()),
-#                                      style = wx.TAB_TRAVERSAL|wx.SUNKEN_BORDER)
-        work_panel = scrolled.ScrolledPanel(self, ID_WorkPanel)
-        work_panel.SetAutoLayout(1)
-        work_panel.SetupScrolling()
+        work_panel = wx.Panel(self, ID_WorkPanel)
         self._mgr.AddPane(work_panel,
                           wx.aui.AuiPaneInfo().Name("work_panel").CentrePane().MaximizeButton(True))
         
@@ -172,7 +181,6 @@ class MainFrame(wx.Frame):
         
         #状态
         status_bar = self.CreateStatusBar(number = 1, name="statusbar")
-#        status_bar.SetStatusWidths([300, -1])
         
         #窗口关闭
         self.Bind(wx.EVT_CLOSE, self.__CloseWindow)
@@ -180,33 +188,75 @@ class MainFrame(wx.Frame):
         #绑定事件
         self.Bind(wx.EVT_MENU, self.__Exit, id=ID_Exit)
         self.Bind(wx.EVT_MENU, self.__OpenFile, id=ID_OpenFile)
-        self.Bind(wx.EVT_TOOL, self.__OpenFile, id=ID_OpenFile_ToolBar)
+        self.Bind(wx.EVT_TOOL, self.__OpenFile, id=ID_File_Open_ToolBar)
+        self.Bind(wx.EVT_TOOL, self.__MenuClick, id=ID_ToolBar_View_OptionPanel)
+        self.Bind(wx.EVT_TEXT_ENTER, self.__ZoomImage, id=ID_Image_Zoom)
+        self.Bind(wx.EVT_COMBOBOX, self.__ZoomImage, id=ID_Image_Zoom)
         self.FindWindowById(ID_BgColour).Bind(wx.EVT_LEFT_DCLICK, self.__PickupColour)
         self.FindWindowById(ID_WorkPanel).Bind(wx.EVT_SIZE, self.__RereshWorkPanel)
         #定义待处理的图片数组
         self.__images = []
         
+        #加载系统配置信息
+        global Application_Settings
+        Application_Settings = Common.LoadFromDisk(Common.GetAppPath() + "\AppSetting.dat")
+        
         #异步加载配置信息
-#        self.FindWindowByName("statusbar").SetStatusText(u"异步读取绣线色彩映射表设定", 0)
+        self.FindWindowByName("statusbar").SetStatusText(u"异步读取绣线色彩映射表设定", 0)
         self.__flossmap = cs.FlossMap()
         threading.Thread(target=self.__flossmap.Load, args=(self.__FlossMapLoadCallback,)).start()
         
     def __FlossMapLoadCallback(self):
         self.FindWindowByName("statusbar").SetStatusText(u"异步读取绣线色彩映射表设定已经完成", 0)
         
+    def __ZoomImage(self, event):
+        '''
+        缩放图片
+        '''
+        value = event.GetEventObject().GetValue()
+        value = value.replace('%', '')
+        try:
+            value = float(value)
+        except:
+            value = 100
+            event.GetEventObject().SetValue('100%')
+        scale = value / 100
+        self.__LoadImage(scale=scale)
+        if self.FindWindowById(ID_ImageReview):
+            self.FindWindowById(ID_ImageReview).SetFocus()
+        
+    def __MenuClick(self, event):
+        '''
+        菜单相应事件
+        '''
+        print event.GetId()
+        if event.GetId() == ID_View_Sub_OptionPanel:
+            item = self.GetMenuBar().GetMenus()[1][0].FindItemById(ID_View_Sub_OptionPanel)
+            self._mgr.GetPane("option_panel").Show(show=item.IsChecked())
+            self._mgr.Update()
+        elif event.GetId() == ID_ToolBar_View_OptionPanel:
+            item = self.GetMenuBar().GetMenus()[1][0].FindItemById(ID_View_Sub_OptionPanel)
+            item.Check(not item.IsChecked())
+            self._mgr.GetPane("option_panel").Show(show=item.IsChecked())
+            self._mgr.Update()
+            if item.IsChecked():
+                event.GetEventObject().FindById(ID_ToolBar_View_OptionPanel).SetLabel(u"隐藏选项面板")
+            else:
+                event.GetEventObject().FindById(ID_ToolBar_View_OptionPanel).SetLabel(u"显示选项面板")
+            event.GetEventObject().Realize()
+            self._mgr.Update()
     def __RereshWorkPanel(self, event):
         '''
             工作面板改变大小
         '''
-        if self.FindWindowById(ID_ImageReview):
-            self.FindWindowById(ID_ImageReview).CentreOnParent(wx.BOTH)
-            
+        if self.FindWindowById(ID_ImageReview) and self.FindWindowById(ID_WorkPanel):
+            self.FindWindowById(ID_ImageReview).SetSize(self.FindWindowById(ID_WorkPanel).GetSize())
         
     def __ValidateForm(self):
         #校验浮点数
         for id in (ID_PrintScale, ID_PreviewScale):
             obj = self.FindWindowById(id)
-            if not func.IsFloat(obj.GetValue()):
+            if not Common.IsFloat(obj.GetValue()):
                 self.__ShowError(u"请输入正小数。")
                 obj.SetFocus()
                 obj.SetSelection(-1, -1)
@@ -214,7 +264,7 @@ class MainFrame(wx.Frame):
         for id in (ID_MaxColourNum, ID_MinFlossNum, ID_MixColourDist, 
                    ID_Width, ID_Height, ID_CT):
             obj = self.FindWindowById(id)
-            if not func.IsInt(obj.GetValue()):
+            if not Common.IsInt(obj.GetValue()):
                 self.__ShowError(u"请输入正整数。")
                 obj.SetFocus()
                 obj.SetSelection(-1, -1)
@@ -224,10 +274,13 @@ class MainFrame(wx.Frame):
     def __OpenFile(self, event):
         wildcard = "All image files (*.bmp;*.gif;*.jpg;*.jpeg;*.png)|" \
                 "*.bmp;*.gif;*.jpg;*.jpeg;*.png"
+        dd = os.getcwd()
+        global Application_Settings
+        if Application_Settings.has_key("Default_Directory"):
+            dd = Application_Settings["Default_Directory"]
         dlg = wx.FileDialog(
             self, message=u"选择文件",
-            defaultDir=os.getcwd(), 
-            defaultFile="",
+            defaultDir=dd,
             wildcard=wildcard,
             style=wx.OPEN | wx.FD_PREVIEW | wx.MULTIPLE | wx.CHANGE_DIR
             )
@@ -235,6 +288,7 @@ class MainFrame(wx.Frame):
             self.__images = []
             for path in dlg.GetPaths():
                 self.__images.append(path)
+            Application_Settings["Default_Directory"] = Common.GetPathName(self.__images[0])
         dlg.Destroy()
         #加载图像
         self.__LoadImage()
@@ -247,7 +301,7 @@ class MainFrame(wx.Frame):
         dlg.GetColourData().SetChooseFull(True)
         if dlg.ShowModal() == wx.ID_OK:
             data = dlg.GetColourData()
-            event.GetEventObject().SetValue(func.RGB2Hex(data.GetColour().Get()))
+            event.GetEventObject().SetValue(Common.RGB2Hex(data.GetColour().Get()))
         dlg.Destroy()
             
     def __Exit(self, event):
@@ -260,6 +314,8 @@ class MainFrame(wx.Frame):
         '''
         窗口关闭
         '''
+        #保存系统设置
+        Common.SaveToDisk(Application_Settings, Common.GetAppPath() + "\AppSetting.dat")
         self.Destroy()
      
     def __ShowError(self, message):
@@ -272,32 +328,46 @@ class MainFrame(wx.Frame):
         dlg.ShowModal()
         dlg.Destroy()
     
-    def __LoadImage(self, index = 0):
+    def __LoadImage(self, index = 0, scale = None):
         '''
         读取图片
         '''
         if self.__images:
+            self.FindWindowById(ID_Image_Zoom).SetValue('100%')
+            self.FindWindowById(ID_Image_Zoom).Enable(True)
+            self.__ShowImage(wx.Image(self.__images[index]), scale)
             
-            work_panel = self.FindWindowById(ID_WorkPanel)
-            work_panel.DestroyChildren()
-            
-            
-            #图像预览用Panel做成
-#            size = work_panel.GetVirtualSize()
-#            panel1 = scrolled.ScrolledPanel(work_panel, ID_ImageReviewPanel, size=(size.GetWidth(),size.GetHeight()),
-#                                      style = wx.TAB_TRAVERSAL|wx.SUNKEN_BORDER)
-            img = wx.Image(self.__images[0])
-            wx.StaticBitmap(work_panel, ID_ImageReview, wx.BitmapFromImage(img)).CentreOnParent(wx.BOTH)
-            work_panel.Refresh()
-            
-#            work_panel.GetSizer().Add(panel1, flag=wx.ALIGN_CENTER | wx.TOP)
-#            work_panel.Fit()
-            
+    def __ShowImage(self, img, scale = None):
+        '''
+        将图片显示在工作区
+        '''
+        work_panel = self.FindWindowById(ID_WorkPanel)
+        work_panel.DestroyChildren()
+        panel1 = scrolled.ScrolledPanel(work_panel, ID_ImageReview, size=work_panel.GetSize(),
+                             style = wx.TAB_TRAVERSAL|wx.SUNKEN_BORDER, name="panel1" )
+        sizer = wx.GridSizer(1, 1)
+        if scale:
+            img = img.Scale(int(img.GetSize()[0] * scale), int(img.GetSize()[1] * scale))
+        sb = wx.StaticBitmap(panel1, -1, wx.BitmapFromImage(img), size=img.GetSize())
+        sb.Bind(wx.EVT_LEFT_DOWN, self.__FocusImage)
+        sizer.Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
+        panel1.SetSizer(sizer)
+        panel1.SetAutoLayout(1)
+        panel1.SetupScrolling()
+        self.FindWindowById(ID_ImageReview).SetFocus()
+    
+    def __FocusImage(self, event):
+        '''
+        点击图片后聚焦到工作区，以相应鼠标滚轮事件
+        '''
+        self.FindWindowById(ID_WorkPanel).SetFocus()
+   
 class Application(wx.App):
     def OnInit(self):
-        win = MainFrame(None, -1, u"十字绣转换工具 morphinewan荣誉出品", size=(660, 550),
+        win = MainFrame(None, -1, u"十字绣转换工具 morphinewan荣誉出品", size=(800, 600),
                   style = wx.DEFAULT_FRAME_STYLE)
         self.SetTopWindow(win)
+        win.CenterOnScreen(1)
         win.Show(True)
         return True
 
