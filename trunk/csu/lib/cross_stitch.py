@@ -26,7 +26,6 @@ class FlossMap():
         程序中使用的都是RGB形式，保存为Hex形式
         '''
         path = os.path.realpath(os.path.split(sys.argv[0])[0] + '/FlossMap.txt')
-        print path
         if not os.path.exists(path):
             f = open(path, 'w')
             f.close()        
