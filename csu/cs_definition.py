@@ -8,9 +8,10 @@ ID_MenuItem_OpenFile = wx.NewId()
 ID_MenuItem_Exit = wx.NewId()
 ID_MenuItem_About = wx.NewId()
 ID_MenuItem_ShowOptionPanel = wx.NewId()
-
+ID_MenuItem_ShowLogPanel = wx.NewId()
 #工具栏
 ID_ToolBar_ShowOptionPanel = wx.NewId()
+ID_ToolBar_ShowLogPanel = wx.NewId()
 ID_ToolBar_ZoomImage = wx.NewId()
 ID_ToolBar_OpenFile = wx.NewId()
 

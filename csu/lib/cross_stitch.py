@@ -79,10 +79,38 @@ class CrossStitch():
     '''
     def __init__(self, filename):
         #定义原图
-        self.__source_image = wx.Image(filename)
+        self.__sip = filename
+        self.__si = wx.Image(self.__sip)
         
     def GetSourceImage(self):
-        return self.__source_image
+        '''
+        获取原图
+        '''
+        return self.__si
+    
+    def GetSourceImageFileName(self):
+        '''
+        获取原图文件名
+        '''
+        return self.__sip
     
     def Destroy(self):
-        self.__source_image.Destroy()
+        '''
+        注销对象
+        '''
+        self.__si.Destroy()
+        del self.__si
+        del self.__sip
+        
+    def GetPreviewImage(self):
+        pass
+        
+class Logger():
+    '''
+    Log记录器, 抽象类
+    '''
+    def Log(self, content):
+        pass
+    
+    def Clear(self):
+        pass
