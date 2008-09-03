@@ -47,8 +47,10 @@ def SaveToDisk(obj, filename):
     把对象保存到硬盘
     '''
     f = open(filename, 'w')
-    pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
-    f.close()
+    try:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+    finally:
+        f.close()
 
 def LoadFromDisk(filename):
     '''
@@ -56,8 +58,10 @@ def LoadFromDisk(filename):
     '''
     if os.path.exists(filename) and os.path.isfile(filename):
         f = open(filename, 'r')
-        result = pickle.load(f)
-        f.close()
+        try:
+            result = pickle.load(f)
+        finally:
+            f.close()
     else:
         result = None
     return result

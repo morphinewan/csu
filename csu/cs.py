@@ -60,14 +60,18 @@ class MainFrame(wx.Frame):
         
         toolbar = wx.ToolBar(self, -1, wx.DefaultPosition, wx.DefaultSize,
                          wx.TB_FLAT | wx.TB_NODIVIDER | wx.TB_HORZ_TEXT)
+        toolbar.SetToolBitmapSize(wx.Size(16,16))
         toolbar.AddControl(wx.StaticText(toolbar, -1, u"缩放"))
         choices = []
         for i in (10,25,50,75,100,150,200):
             choices.append("%d%%" % i)
         combo = wx.ComboBox(toolbar, ID_ToolBar_ZoomImage, value="100%",choices=choices)        
         toolbar.AddControl(combo)
+        
+        #添加自定义Button
+        toolbar.AddControl(wx.Button(toolbar, ID_ToolBar_GeneratePreview, u"预览"))
         toolbar.Realize()
-        combo.Enable(False)
+        
         self.__mgr.AddPane(toolbar, wx.aui.AuiPaneInfo().
                           Name("picturebar").Caption(u"图片").
                           ToolbarPane().Top().
@@ -106,6 +110,8 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.OnFileOpen, id=ID_ToolBar_OpenFile)
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnMenuClick, id=ID_ToolBar_ShowOptionPanel)
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnMenuClick, id=ID_ToolBar_ShowLogPanel)
+        self.Bind(wx.EVT_BUTTON , self.OnGeneratePreview, id=ID_ToolBar_GeneratePreview)
+        
         
         self.Bind(wx.EVT_TEXT_ENTER, self.OnImageZoom, id=ID_ToolBar_ZoomImage)
         self.Bind(wx.EVT_COMBOBOX, self.OnImageZoom, id=ID_ToolBar_ZoomImage)
@@ -124,6 +130,14 @@ class MainFrame(wx.Frame):
         threading.Thread(target=self.__flossmap.Load, args=(self.__CallbackFlossMapLoad,)).start()
         #初始化界面
         self.__InitLayout()
+    
+    def OnGeneratePreview(self, event):
+        '''
+        预览图片
+        '''
+        if self.__option_panel.ValidateData(self):
+            self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("100%")
+            self.__work_panel.ShowPreview(self.__option_panel.GetProperties())
         
     def OnImageZoom(self, event):
         '''
@@ -136,8 +150,8 @@ class MainFrame(wx.Frame):
         except:
             value = 100
             event.GetEventObject().SetValue('100%')
-        scale = value / 100        
-#        self.__work_panel.AppendImage(self.__cs[0].GetSourceImage(), u"原图", scale)
+        scale = value / 100
+        self.__work_panel.Scale(scale)
         
     def OnMenuClick(self, event):
         '''
@@ -189,7 +203,8 @@ class MainFrame(wx.Frame):
             if self.__cs:
                 self.__work_panel.Clear()
                 self.FindWindowById(ID_ToolBar_ZoomImage).SetValue('100%')
-                self.FindWindowById(ID_ToolBar_ZoomImage).Enable(True)
+                self.FindWindowById(ID_ToolBar_ZoomImage).Enable(1)
+                self.FindWindowById(ID_ToolBar_GeneratePreview).Enable(1)
                 self.__work_panel.BoundCrossStitch(self.__cs[0])
         dlg.Destroy()
         
@@ -221,8 +236,10 @@ class MainFrame(wx.Frame):
         self.FindWindowById(ID_ToolBar_ShowLogPanel).SetValue(0)
         self.__mgr.Update()
         
+        self.FindWindowById(ID_ToolBar_ZoomImage).Enable(0)
+        self.FindWindowById(ID_ToolBar_GeneratePreview).Enable(0)
         #设置图标        
-        self.SetIcon(wx.Icon("%s/favicon.ico" % Common.GetAppPath(), wx.BITMAP_TYPE_ICO))
+        self.SetIcon(IMAGE_APP_ICON.GetIcon())
         
     def __ShowError(self, message):
         dlg = wx.MessageDialog(self, message, u"错误", style= wx.OK | wx.ICON_ERROR)
@@ -237,25 +254,6 @@ class MainFrame(wx.Frame):
     def __CallbackFlossMapLoad(self):
         self.__log_panel.Log(u"异步读取绣线色彩映射表设定已经完成")
     
-    def __ValidateForm(self):
-        #校验浮点数
-        for id in (ID_Option_PrintScale, ID_Option_PreviewScale):
-            obj = self.FindWindowById(id)
-            if not Common.IsFloat(obj.GetValue()):
-                self.__ShowError(u"请输入正小数。")
-                obj.SetFocus()
-                obj.SetSelection(-1, -1)
-                return False
-        for id in (ID_Option_MaxColourNum, ID_Option_MinFlossNum, ID_Option_MixColourDist, 
-                   ID_Option_Width, ID_Option_Height, ID_Option_CT):
-            obj = self.FindWindowById(id)
-            if not Common.IsInt(obj.GetValue()):
-                self.__ShowError(u"请输入正整数。")
-                obj.SetFocus()
-                obj.SetSelection(-1, -1)
-                return False
-        return True
-    
     class WorkPanel(wx.Panel):
         '''
         工作面板
@@ -269,19 +267,22 @@ class MainFrame(wx.Frame):
             sizer.Add(self.__nb, 0, wx.EXPAND)
             self.SetSizer(sizer)
             self.Bind(wx.EVT_SIZE, self.OnResize)
+            self.__nb.Bind(fnb.EVT_FLATNOTEBOOK_PAGE_CHANGED, self.__OnPageChanged)
             self.__cs = None
+        
+        def __OnPageChanged(self, event):
+            nb = event.GetEventObject()
+            print "__OnPageChanged"
             
         def OnResize(self, event):
             '''
                 工作面板改变大小
             '''
             self.__nb.SetSize(self.GetSize())
-          
+            print "OnResize"
         def Clear(self):
             self.__nb.DeleteAllPages()
-            if self.__cs:
-                self.__cs.Destroy()
-            del self.__cs
+            self.__cs = None
             
         def BoundCrossStitch(self, cs):
             '''
@@ -290,12 +291,10 @@ class MainFrame(wx.Frame):
             self.__cs = cs
             self.__AppendImage(self.__cs.GetSourceImage(), u"原图")
             
-        def __AppendImage(self, img, name, scale=None):
+        def __AppendImage(self, img, name):
             preview_panel = scrolled.ScrolledPanel(self, ID_Panel_Work_ImageReview, size=self.GetSize(),
                                  style = wx.TAB_TRAVERSAL|wx.SUNKEN_BORDER)
             sizer = wx.GridSizer(1, 1)
-            if scale:
-                img = img.Scale(int(img.GetSize()[0] * scale), int(img.GetSize()[1] * scale))
             sb = wx.StaticBitmap(preview_panel, -1, wx.BitmapFromImage(img), size=img.GetSize())
             sb.Bind(wx.EVT_LEFT_DOWN, self.OnImageFocus)
             sb.SetFocus()
@@ -306,18 +305,56 @@ class MainFrame(wx.Frame):
 
             self.__nb.AddPage(preview_panel, name, select=True)
             self.__nb.Show()
-                
+            
+        def __UpdateImage(self, index, image, scale=None):
+            preview_panel = self.__nb.GetPage(index)
+            preview_panel.DestroyChildren()
+            #如果有需要放缩图片的话
+            if scale:
+                image = image.Scale(int(image.GetSize()[0] * scale), int(image.GetSize()[1] * scale))
+            sb = wx.StaticBitmap(preview_panel, -1, wx.BitmapFromImage(image), size=image.GetSize())
+            sb.Bind(wx.EVT_LEFT_DOWN, self.OnImageFocus)
+            sb.SetFocus()
+            preview_panel.GetSizer().Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
+            preview_panel.SetAutoLayout(1)
+            preview_panel.SetupScrolling()
+            
+        def ShowPreview(self, args):
+            '''
+            预览图片
+            '''
+            #如果没有预览过，则新建一个tab
+            if self.__nb.GetPageCount() < 2:
+                self.__AppendImage(self.__cs.GetPreviewImage(args), u"预览图")
+            else:
+                #如果已经预览过，则更新第二页
+                self.__UpdateImage(1, self.__cs.GetPreviewImage(args))
+            self.__nb.SetSelection(1)
+        
         def OnImageFocus(self, event):
             '''
             点击图片后聚焦到工作区，以相应鼠标滚轮事件
             '''
             event.GetEventObject().SetFocus()
+            print "OnImageFocus"
         
-        def HasPage(self):
+        def Scale(self, scale):
             '''
-            是否有图片显示
+            图形缩放
             '''
-            return self.__nb.GetPageCount > 0
+            print "Scale"
+            index = self.__nb.GetSelection()
+            #如果绑定了cs对象的话
+            if self.__cs:
+                if index == 0:
+                    #取源图
+                    image = self.__cs.GetSourceImage()
+                elif index == 1:
+                    image = self.__cs.GetPreviewImage()
+                else:
+                    return
+                self.__UpdateImage(index, image, scale)
+                
             
     class OptionPanel(wx.Panel):
         '''
@@ -428,7 +465,47 @@ class MainFrame(wx.Frame):
                 data = dlg.GetColourData()
                 event.GetEventObject().SetValue(Common.RGB2Hex(data.GetColour().Get()))
             dlg.Destroy()
-            
+        
+        def GetProperties(self):
+            '''
+            取得参数配置
+            '''
+            props = {}
+            props["PrintScale"] = float(self.FindWindowById(ID_Option_PrintScale).GetValue())
+            props["PreviewScale"] = float(self.FindWindowById(ID_Option_PreviewScale).GetValue())
+            return props
+#ID_Option_BgColour = wx.NewId()
+#ID_Option_MaxColourNum = wx.NewId()
+#ID_Option_MinFlossNum = wx.NewId()
+#ID_Option_MixColourDist = wx.NewId()
+#ID_Option_Width = wx.NewId()
+#ID_Option_Height = wx.NewId()
+#ID_Option_CT = wx.NewId()
+#ID_Option_CropSide = wx.NewId()
+#ID_Option_AntiNoise = wx.NewId()
+#ID_Option_AntiBgColour = wx.NewId()
+#ID_Option_OnlyPreview = wx.NewId()
+#ID_Option_ForTaobao = wx.NewId()
+#ID_Option_DisabledBgColour = wx.NewId()
+        def ValidateData(self, parent):
+            #校验浮点数
+            for id in (ID_Option_PrintScale, ID_Option_PreviewScale):
+                obj = self.FindWindowById(id)
+                if not Common.IsFloat(obj.GetValue()):
+                    parent.__ShowError(u"请输入正小数。")
+                    obj.SetFocus()
+                    obj.SetSelection(-1, -1)
+                    return False
+            for id in (ID_Option_MaxColourNum, ID_Option_MinFlossNum, ID_Option_MixColourDist, 
+                       ID_Option_Width, ID_Option_Height, ID_Option_CT):
+                obj = self.FindWindowById(id)
+                if not Common.IsInt(obj.GetValue()):
+                    parent.__ShowError(u"请输入正整数。")
+                    obj.SetFocus()
+                    obj.SetSelection(-1, -1)
+                    return False
+            return True
+        
     class LogPanel(wx.Panel, cs.Logger):
         '''
         日志面板
