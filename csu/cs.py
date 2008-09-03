@@ -2,9 +2,6 @@
 import os
 import time
 import wx,wx.aui
-import wx.lib.scrolledpanel as scrolled
-import wx.lib.imagebrowser as ib
-import wx.lib.flatnotebook as fnb
 import wx.combo
 import threading
 import lib.func as Common
@@ -83,7 +80,7 @@ class MainFrame(wx.Frame):
                           .CloseButton(False).TopDockable(False).BottomDockable(False).MaximizeButton(True))
         
         #右部工作区
-        self.__work_panel = self.WorkPanel(self)
+        self.__work_panel = self.WorkPanel(self, self.OnWorkPanelPageChanged)
         self.__mgr.AddPane(self.__work_panel,
                           wx.aui.AuiPaneInfo().Name("work_panel").CentrePane().MaximizeButton(True))
         
@@ -130,6 +127,9 @@ class MainFrame(wx.Frame):
         threading.Thread(target=self.__flossmap.Load, args=(self.__CallbackFlossMapLoad,)).start()
         #初始化界面
         self.__InitLayout()
+        
+    def OnWorkPanelPageChanged(self, scale):
+        self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("%d%%" % int(scale * 100))
     
     def OnGeneratePreview(self, event):
         '''
@@ -138,6 +138,7 @@ class MainFrame(wx.Frame):
         if self.__option_panel.ValidateData(self):
             self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("100%")
             self.__work_panel.ShowPreview(self.__option_panel.GetProperties())
+        event.Skip()
         
     def OnImageZoom(self, event):
         '''
@@ -152,6 +153,7 @@ class MainFrame(wx.Frame):
             event.GetEventObject().SetValue('100%')
         scale = value / 100
         self.__work_panel.Scale(scale)
+        event.Skip()
         
     def OnMenuClick(self, event):
         '''
@@ -177,6 +179,7 @@ class MainFrame(wx.Frame):
             item.Check(self.FindWindowById(ID_ToolBar_ShowLogPanel).GetValue())
             self.__mgr.GetPane("log_panel").Show(show=item.IsChecked())
             self.__mgr.Update()
+        event.Skip()
         
     def OnFileOpen(self, event):
         '''
@@ -207,7 +210,7 @@ class MainFrame(wx.Frame):
                 self.FindWindowById(ID_ToolBar_GeneratePreview).Enable(1)
                 self.__work_panel.BoundCrossStitch(self.__cs[0])
         dlg.Destroy()
-        
+        event.Skip()
         
             
     def OnExit(self, event):
@@ -258,31 +261,48 @@ class MainFrame(wx.Frame):
         '''
         工作面板
         '''
-        def __init__(self, parent):
-            wx.Panel.__init__(self, parent, ID_Panel_Work)
-            self.__nb = fnb.FlatNotebook(self, style=fnb.FNB_NO_X_BUTTON | fnb.FNB_NO_NAV_BUTTONS \
-                                         | fnb.FNB_FF2 | fnb.FNB_HIDE_ON_SINGLE_TAB)
-            self.__nb.Hide()
+        def __init__(self, parent, pagechangehandller, size = (-1, -1)):
+            wx.Panel.__init__(self, parent, ID_Panel_Work, size)
+            self.__nb = wx.Notebook(self)
             sizer = wx.BoxSizer()
             sizer.Add(self.__nb, 0, wx.EXPAND)
-            self.SetSizer(sizer)
-            self.Bind(wx.EVT_SIZE, self.OnResize)
-            self.__nb.Bind(fnb.EVT_FLATNOTEBOOK_PAGE_CHANGED, self.__OnPageChanged)
+            self.SetSizer(sizer)            
             self.__cs = None
+            self.scales = []
+            self.Bind(wx.EVT_SIZE, self.OnResize)
+            self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel)
+            self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.OnPageChanged)
+            self.__pch = pagechangehandller
+            
+        def OnPageChanged(self, event):
+            self.__pch(self.scales[self.__nb.GetSelection()])
         
-        def __OnPageChanged(self, event):
-            nb = event.GetEventObject()
-            print "__OnPageChanged"
+        def OnMouseWheel(self, event):
+            index = self.__nb.GetSelection()
+            if index >= 0:
+                preview_panel = self.__nb.GetPage(index)
+                if event.m_wheelRotation < 0:
+                    if event.m_controlDown:
+                        preview_panel.Scroll(preview_panel.GetViewStart()[0] + 1, preview_panel.GetViewStart()[1])
+                    else:
+                        preview_panel.Scroll(preview_panel.GetViewStart()[0], preview_panel.GetViewStart()[1] + 1)
+                else:
+                    if event.m_controlDown:
+                        preview_panel.Scroll(preview_panel.GetViewStart()[0] - 1, preview_panel.GetViewStart()[1])
+                    else:
+                        preview_panel.Scroll(preview_panel.GetViewStart()[0], preview_panel.GetViewStart()[1] - 1)
+            event.Skip()
             
         def OnResize(self, event):
             '''
                 工作面板改变大小
             '''
             self.__nb.SetSize(self.GetSize())
-            print "OnResize"
+            
         def Clear(self):
             self.__nb.DeleteAllPages()
             self.__cs = None
+            self.scales = []
             
         def BoundCrossStitch(self, cs):
             '''
@@ -292,32 +312,25 @@ class MainFrame(wx.Frame):
             self.__AppendImage(self.__cs.GetSourceImage(), u"原图")
             
         def __AppendImage(self, img, name):
-            preview_panel = scrolled.ScrolledPanel(self, ID_Panel_Work_ImageReview, size=self.GetSize(),
-                                 style = wx.TAB_TRAVERSAL|wx.SUNKEN_BORDER)
+            preview_panel = wx.ScrolledWindow(self.__nb, ID_Panel_Work_ImageReview, size=self.GetSize())
             sizer = wx.GridSizer(1, 1)
             sb = wx.StaticBitmap(preview_panel, -1, wx.BitmapFromImage(img), size=img.GetSize())
-            sb.Bind(wx.EVT_LEFT_DOWN, self.OnImageFocus)
-            sb.SetFocus()
             sizer.Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
             preview_panel.SetSizer(sizer)
-            preview_panel.SetAutoLayout(1)
-            preview_panel.SetupScrolling()
-
+            preview_panel.SetScrollbars(50, 50, -1, -1, 0, 0)
+            self.scales.append(1.0)
             self.__nb.AddPage(preview_panel, name, select=True)
-            self.__nb.Show()
             
-        def __UpdateImage(self, index, image, scale=None):
+            
+        def __UpdateImage(self, index, img, scale=None):
             preview_panel = self.__nb.GetPage(index)
             preview_panel.DestroyChildren()
             #如果有需要放缩图片的话
             if scale:
-                image = image.Scale(int(image.GetSize()[0] * scale), int(image.GetSize()[1] * scale))
-            sb = wx.StaticBitmap(preview_panel, -1, wx.BitmapFromImage(image), size=image.GetSize())
-            sb.Bind(wx.EVT_LEFT_DOWN, self.OnImageFocus)
-            sb.SetFocus()
+                img = img.Scale(int(img.GetSize()[0] * scale), int(img.GetSize()[1] * scale))
+            sb = wx.StaticBitmap(preview_panel, -1, wx.BitmapFromImage(img), size=img.GetSize())
             preview_panel.GetSizer().Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
-            preview_panel.SetAutoLayout(1)
-            preview_panel.SetupScrolling()
+            preview_panel.FitInside()
             
         def ShowPreview(self, args):
             '''
@@ -331,19 +344,12 @@ class MainFrame(wx.Frame):
                 self.__UpdateImage(1, self.__cs.GetPreviewImage(args))
             self.__nb.SetSelection(1)
         
-        def OnImageFocus(self, event):
-            '''
-            点击图片后聚焦到工作区，以相应鼠标滚轮事件
-            '''
-            event.GetEventObject().SetFocus()
-            print "OnImageFocus"
-        
         def Scale(self, scale):
             '''
             图形缩放
             '''
-            print "Scale"
             index = self.__nb.GetSelection()
+            self.scales[index] = scale
             #如果绑定了cs对象的话
             if self.__cs:
                 if index == 0:
@@ -354,6 +360,7 @@ class MainFrame(wx.Frame):
                 else:
                     return
                 self.__UpdateImage(index, image, scale)
+            self.SetFocus()
                 
             
     class OptionPanel(wx.Panel):
@@ -465,7 +472,8 @@ class MainFrame(wx.Frame):
                 data = dlg.GetColourData()
                 event.GetEventObject().SetValue(Common.RGB2Hex(data.GetColour().Get()))
             dlg.Destroy()
-        
+            event.Skip()
+            
         def GetProperties(self):
             '''
             取得参数配置
@@ -523,10 +531,10 @@ class MainFrame(wx.Frame):
             
         def __OnResize(self, event):
             self.log.SetSize(self.GetSize())
-        
+            
         def Log(self, content):
             self.log.AppendText("%s %s\n" % (time.strftime('%Y-%m-%d %X', time.localtime()), content))
-        
+            
         def Clear(self):
             self.log.ChangeValue("")
             
