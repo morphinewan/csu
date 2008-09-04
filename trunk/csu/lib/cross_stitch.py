@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 import sys,os
 import wx
+import wx.lib.newevent
 import time
 import func as Common
+
+(UpdateCrossStitchEvent, EVT_UPDATE_CROSS_STITCH) = wx.lib.newevent.NewEvent()
 
 EVENT_PREVIEW_GENERATING = 1
 EVENT_PREVIEW_GENERATED = 2
@@ -75,7 +78,7 @@ class CrossStitch():
     '''
     十字绣对象
     '''
-    def __init__(self, filename, logger, flossmap):
+    def __init__(self, filename, logger, flossmap, sender):
         #定义原图
         self.__sourceimage = (filename, wx.Image(filename))
         #定义预览图
@@ -84,14 +87,7 @@ class CrossStitch():
         self.__logger = logger
         #颜色映射表
         self.__flossmap = flossmap
-        self.__EventHandlers = {}
-        
-    def Bind(self, event, handler):
-        '''
-        绑定事件
-        '''
-        self.__EventHandlers[event] = handler
-        
+        self.__sender = sender
         
     def GetSourceImage(self):
         '''
@@ -115,33 +111,27 @@ class CrossStitch():
         if self.__previewimage:
             self.__previewimage.Destroy()
             del self.__previewimage
+            
+    def GeneratePreviewImage(self, dic_args):
+        '''
+        #生成预览图片
+        '''
+        self.__previewimage = self.__GeneratePreviewImage(dic_args)
+        #完成事件
+        evt = UpdateCrossStitchEvent(type=EVENT_PREVIEW_GENERATED)
+        wx.PostEvent(self.__sender, evt)
         
-    def GetPreviewImage(self, dic_args = None):
+    def GetPreviewImage(self):
         '''
         取得预览图
         '''
-        #如果传递参数，则重新做成预览图
-        if dic_args:
-            self.__previewimage = self.__GeneratePreviewImage(dic_args)
-            #完成事件
-            event_handler = self.__GetEventHandler(EVENT_PREVIEW_GENERATED)
-            if event_handler:
-                event_handler()
-            
+        #如果传递参数，则重新做成预览图       
         if self.__previewimage:
             return self.__previewimage
         else:
             return None
     
-    def __GetEventHandler(self, event):
-        '''
-        获得事件句柄
-        '''
-        if self.__EventHandlers.has_key(event):
-            return self.__EventHandlers[event]
-        else:
-            return None
-    
+      
     def __GeneratePreviewImage(self, dic_args):
         '''
         根据参数作成预览图
@@ -205,7 +195,6 @@ class CrossStitch():
         '''
         将图片的颜色表替换成绣图专用颜色
         '''
-        event_handler = self.__GetEventHandler(EVENT_PREVIEW_GENERATING)
         min = 0
         max = im.GetWidth() * im.GetHeight() - 1
         pos = 0
@@ -214,9 +203,9 @@ class CrossStitch():
             for y in range(im.GetHeight()):
                 rgb = self.__GetMinDistanceColor(im.GetRed(x, y), im.GetGreen(x, y), im.GetBlue(x, y))
                 im.SetRGB(x, y, rgb[0], rgb[1], rgb[2])
-                if event_handler:
-                    event_handler(min, max, pos)
-                    pos += 1
+                evt = UpdateCrossStitchEvent(type=EVENT_PREVIEW_GENERATING, min=min, max=max, pos=pos)
+                wx.PostEvent(self.__sender, evt)
+                pos += 1
         #保存颜色映射表
         self.__flossmap.SaveData()
         return im
