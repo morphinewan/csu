@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 import sys,os
 import wx
+import time
 import func as Common
+
+EVENT_PREVIEW_GENERATING = 1
+EVENT_PREVIEW_GENERATED = 2
 
 class Floss():
     '''
@@ -80,6 +84,14 @@ class CrossStitch():
         self.__logger = logger
         #颜色映射表
         self.__flossmap = flossmap
+        self.__EventHandlers = {}
+        
+    def Bind(self, event, handler):
+        '''
+        绑定事件
+        '''
+        self.__EventHandlers[event] = handler
+        
         
     def GetSourceImage(self):
         '''
@@ -111,9 +123,22 @@ class CrossStitch():
         #如果传递参数，则重新做成预览图
         if dic_args:
             self.__previewimage = self.__GeneratePreviewImage(dic_args)
-        
+            #完成事件
+            event_handler = self.__GetEventHandler(EVENT_PREVIEW_GENERATED)
+            if event_handler:
+                event_handler()
+            
         if self.__previewimage:
             return self.__previewimage
+        else:
+            return None
+    
+    def __GetEventHandler(self, event):
+        '''
+        获得事件句柄
+        '''
+        if self.__EventHandlers.has_key(event):
+            return self.__EventHandlers[event]
         else:
             return None
     
@@ -130,7 +155,6 @@ class CrossStitch():
         new_im = im.Scale(w, h)
         self.__logger.Log(u"更换图片调色板为绣图专用DMC颜色")
         new_im = self.__ChangeColorTable(new_im)
-        
         
         return new_im
     
@@ -180,12 +204,19 @@ class CrossStitch():
     def __ChangeColorTable(self, im):
         '''
         将图片的颜色表替换成绣图专用颜色
-        '''        
+        '''
+        event_handler = self.__GetEventHandler(EVENT_PREVIEW_GENERATING)
+        min = 0
+        max = im.GetWidth() * im.GetHeight() - 1
+        pos = 0
         #逐个分析各个像素的颜色，找到颜色表内对应最接近的颜色替代
         for x in range(im.GetWidth()):
             for y in range(im.GetHeight()):
                 rgb = self.__GetMinDistanceColor(im.GetRed(x, y), im.GetGreen(x, y), im.GetBlue(x, y))
                 im.SetRGB(x, y, rgb[0], rgb[1], rgb[2])
+                if event_handler:
+                    event_handler(min, max, pos)
+                    pos += 1
         #保存颜色映射表
         self.__flossmap.SaveData()
         return im

@@ -99,7 +99,7 @@ class MainFrame(wx.Frame):
         
         self.__mgr.Update()
         #状态
-        status_bar = self.CreateStatusBar(number = 1, name="statusbar")
+        self.__status_bar = self.CreateStatusBar(number = 1, name="statusbar")
         
         #窗口关闭
         self.Bind(wx.EVT_CLOSE, self.OnWindowClose)
@@ -168,7 +168,10 @@ class MainFrame(wx.Frame):
         '''
         if self.__option_panel.ValidateData():
             self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("100%")
-            self.__work_panel.ShowPreviewImage(self.__option_panel.GetProperties())
+            self.__EnableImageTool(0)
+            self.__work_panel.Freeze()
+            threading.Thread(target=self.__work_panel.ShowPreviewImage, args=(self.__option_panel.GetProperties(),)).start()
+#            self.__work_panel.ShowPreviewImage(self.__option_panel.GetProperties())
         
     def OnImageZoom(self, event):
         '''
@@ -228,19 +231,33 @@ class MainFrame(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             self.__cs = []
             for path in dlg.GetPaths():
-                self.__cs.append(cs.CrossStitch(path, self.__log_panel, self.__flossmap))
+                cs1 = cs.CrossStitch(path, self.__log_panel, self.__flossmap)
+                cs1.Bind(cs.EVENT_PREVIEW_GENERATING, self.OnCSPreviewGenerating)
+                cs1.Bind(cs.EVENT_PREVIEW_GENERATED, self.OnCSPreviewGenerated)
+                self.__cs.append(cs1)
             Application_Settings["Default_Directory"] = Common.GetPathName(self.__cs[0].GetSourceImageFileName())
             #加载图像
             if self.__cs:
                 self.__work_panel.Clear()
                 self.FindWindowById(ID_ToolBar_ZoomImage).SetValue('100%')
-                self.FindWindowById(ID_ToolBar_ZoomImage).Enable(1)
-                self.FindWindowById(ID_ToolBar_ZoomImageSpin).Enable(1)
-                self.FindWindowById(ID_ToolBar_GeneratePreview).Enable(1)
+                self.__EnableImageTool(1)
                 self.__work_panel.BoundCrossStitch(self.__cs[0])
         dlg.Destroy()
+    
+    def __EnableImageTool(self, flg):
+        self.FindWindowById(ID_ToolBar_ZoomImage).Enable(flg)
+        self.FindWindowById(ID_ToolBar_ZoomImageSpin).Enable(flg)
+        self.FindWindowById(ID_ToolBar_GeneratePreview).Enable(flg)
+       
+    def OnCSPreviewGenerating(self, min, max, pos):
+        per = float(pos) * 100 / (max - min)
+        self.__status_bar.SetStatusText(u"进度%0.1f%%" % per, 0)
+    
+    def OnCSPreviewGenerated(self):
+        self.__EnableImageTool(1)
+        self.__status_bar.SetStatusText(u"预览图转换完成")
+        self.__work_panel.Thaw()
         
-            
     def OnExit(self, event):
         '''
         关闭按钮
@@ -268,9 +285,7 @@ class MainFrame(wx.Frame):
         self.FindWindowById(ID_ToolBar_ShowLogPanel).SetValue(1)
         self.__mgr.Update()
         
-        self.FindWindowById(ID_ToolBar_ZoomImage).Enable(0)
-        self.FindWindowById(ID_ToolBar_ZoomImageSpin).Enable(0)
-        self.FindWindowById(ID_ToolBar_GeneratePreview).Enable(0)
+        self.__EnableImageTool(0)
         #设置图标        
         self.SetIcon(IMAGE_APP_ICON.GetIcon())
    
