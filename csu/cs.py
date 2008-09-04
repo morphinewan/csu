@@ -4,7 +4,7 @@ import time
 import math
 import wx,wx.aui
 import wx.combo
-import  wx.lib.scrolledpanel as scrolled
+import wx.lib.scrolledpanel as scrolled
 import threading
 import lib.func as Common
 import lib.cross_stitch as cs
@@ -121,6 +121,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_SPIN_UP, self.OnImageZoomSpinUp, id=ID_ToolBar_ZoomImageSpin)
         self.Bind(wx.EVT_SPIN_DOWN, self.OnImageZoomSpinDown, id=ID_ToolBar_ZoomImageSpin)
         
+        self.Bind(cs.EVT_UPDATE_CROSS_STITCH, self.OnCrossStitchUpdate)
         #定义待处理的图片数组
         self.__cs = []
         
@@ -169,9 +170,7 @@ class MainFrame(wx.Frame):
         if self.__option_panel.ValidateData():
             self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("100%")
             self.__EnableImageTool(0)
-            self.__work_panel.Freeze()
-            threading.Thread(target=self.__work_panel.ShowPreviewImage, args=(self.__option_panel.GetProperties(),)).start()
-#            self.__work_panel.ShowPreviewImage(self.__option_panel.GetProperties())
+            threading.Thread(target=self.__cs[0].GeneratePreviewImage, args=(self.__option_panel.GetProperties(),)).start()
         
     def OnImageZoom(self, event):
         '''
@@ -231,9 +230,7 @@ class MainFrame(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             self.__cs = []
             for path in dlg.GetPaths():
-                cs1 = cs.CrossStitch(path, self.__log_panel, self.__flossmap)
-                cs1.Bind(cs.EVENT_PREVIEW_GENERATING, self.OnCSPreviewGenerating)
-                cs1.Bind(cs.EVENT_PREVIEW_GENERATED, self.OnCSPreviewGenerated)
+                cs1 = cs.CrossStitch(path, self.__log_panel, self.__flossmap, self)
                 self.__cs.append(cs1)
             Application_Settings["Default_Directory"] = Common.GetPathName(self.__cs[0].GetSourceImageFileName())
             #加载图像
@@ -241,22 +238,22 @@ class MainFrame(wx.Frame):
                 self.__work_panel.Clear()
                 self.FindWindowById(ID_ToolBar_ZoomImage).SetValue('100%')
                 self.__EnableImageTool(1)
-                self.__work_panel.BoundCrossStitch(self.__cs[0])
+                self.__work_panel.ShowImage(self.__cs[0].GetSourceImage())
         dlg.Destroy()
     
     def __EnableImageTool(self, flg):
         self.FindWindowById(ID_ToolBar_ZoomImage).Enable(flg)
         self.FindWindowById(ID_ToolBar_ZoomImageSpin).Enable(flg)
         self.FindWindowById(ID_ToolBar_GeneratePreview).Enable(flg)
-       
-    def OnCSPreviewGenerating(self, min, max, pos):
-        per = float(pos) * 100 / (max - min)
-        self.__status_bar.SetStatusText(u"进度%0.1f%%" % per, 0)
     
-    def OnCSPreviewGenerated(self):
-        self.__EnableImageTool(1)
-        self.__status_bar.SetStatusText(u"预览图转换完成")
-        self.__work_panel.Thaw()
+    def OnCrossStitchUpdate(self, event):
+        if event.type ==  cs.EVENT_PREVIEW_GENERATED:
+            self.__EnableImageTool(1)
+            self.__status_bar.SetStatusText(u"预览图转换完成")
+            self.__work_panel.ShowImage(self.__cs[0].GetPreviewImage())
+        elif event.type == cs.EVENT_PREVIEW_GENERATING:
+            per = float(event.pos) * 100 / (event.max - event.min)
+            self.__status_bar.SetStatusText(u"进度%0.1f%%" % per, 0)
         
     def OnExit(self, event):
         '''
@@ -297,13 +294,11 @@ class MainFrame(wx.Frame):
         工作面板
         '''
         def __init__(self, parent):
-            wx.Panel.__init__(self, parent, ID_Panel_Work)               
-            self.__cs = None
+            wx.Panel.__init__(self, parent, ID_Panel_Work)
             self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel)
             self.Bind(wx.EVT_SIZE, self.OnResize)
             self.Bind(wx.EVT_LEFT_DOWN, self.OnLeftDown)
-            self.__current_image = None
-        
+         
         def OnLeftDown(self, event):
             self.SetFocus()
             
@@ -321,46 +316,61 @@ class MainFrame(wx.Frame):
             self.__current_image = None
             self.DestroyChildren()
             
-        def BoundCrossStitch(self, cs):
-            '''
-            绑定CS
-            '''
-            self.__cs = cs
-            self.ShowSourceImage()
-            
-            
-        def ShowSourceImage(self):
-            preview_panel = scrolled.ScrolledPanel(self, ID_Panel_Work_ImageReview, size=self.GetSize())
+        def ShowImage(self, image):
+            preview_panel = self.FindWindowById(ID_Panel_Work_ImageReview)
+            if preview_panel:
+                preview_panel.DestroyChildren()
+            else:                           
+                preview_panel = scrolled.ScrolledPanel(self, ID_Panel_Work_ImageReview, size=self.GetSize())
             sizer = wx.GridSizer(1, 1)
-            sb = wx.StaticBitmap(preview_panel, -1, wx.BitmapFromImage(self.__cs.GetSourceImage()), size=self.__cs.GetSourceImage().GetSize())
+            sb = wx.StaticBitmap(preview_panel, -1, wx.BitmapFromImage(image), size=image.GetSize())
             sizer.Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
             preview_panel.SetSizer(sizer)
             preview_panel.SetAutoLayout(1)
             preview_panel.SetupScrolling()
             sb.Bind(wx.EVT_LEFT_DOWN, self.OnLeftDown)
-            self.__current_image = self.__cs.GetSourceImage()
+            self.__current_image = image
             self.SetFocus()
             
-        def ShowPreviewImage(self, args):
-            '''
-            预览图片
-            '''
-            image_panel = self.FindWindowById(ID_Panel_Work_ImageReview)
-            image_panel.DestroyChildren()
-            self.__current_image = self.__cs.GetPreviewImage(args)
-            image = self.__current_image
-            sb = wx.StaticBitmap(image_panel, -1, wx.BitmapFromImage(image), size=image.GetSize())
-            image_panel.GetSizer().Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
-            image_panel.SetAutoLayout(1)
-            image_panel.SetupScrolling()
-            self.SetFocus()
-                
+#        def BoundCrossStitch(self, cs):
+#            '''
+#            绑定CS
+#            '''
+#            self.__cs = cs
+#            self.ShowSourceImage()
+#            
+#            
+#        def ShowSourceImage(self):
+#            preview_panel = scrolled.ScrolledPanel(self, ID_Panel_Work_ImageReview, size=self.GetSize())
+#            sizer = wx.GridSizer(1, 1)
+#            sb = wx.StaticBitmap(preview_panel, -1, wx.BitmapFromImage(self.__cs.GetSourceImage()), size=self.__cs.GetSourceImage().GetSize())
+#            sizer.Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
+#            preview_panel.SetSizer(sizer)
+#            preview_panel.SetAutoLayout(1)
+#            preview_panel.SetupScrolling()
+#            sb.Bind(wx.EVT_LEFT_DOWN, self.OnLeftDown)
+#            self.__current_image = self.__cs.GetSourceImage()
+#            self.SetFocus()
+#            
+#        def ShowPreviewImage(self, args):
+#            '''
+#            预览图片
+#            '''
+#            image_panel = self.FindWindowById(ID_Panel_Work_ImageReview)
+#            image_panel.DestroyChildren()
+#            self.__current_image = self.__cs.GetPreviewImage(args)
+#            image = self.__current_image
+#            sb = wx.StaticBitmap(image_panel, -1, wx.BitmapFromImage(image), size=image.GetSize())
+#            image_panel.GetSizer().Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
+#            image_panel.SetAutoLayout(1)
+#            image_panel.SetupScrolling()
+#            self.SetFocus()
+#                
         def Scale(self, scale):
             '''
             图形缩放
             '''
-            #如果绑定了cs对象的话
-            if self.__cs:
+            if self.__current_image:
                 #修改图片大小
                 image_panel = self.FindWindowById(ID_Panel_Work_ImageReview)
                 image_panel.DestroyChildren()
