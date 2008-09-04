@@ -15,6 +15,7 @@ ID_ToolBar_ShowLogPanel = wx.NewId()
 ID_ToolBar_OpenFile = wx.NewId()
 
 ID_ToolBar_ZoomImage = wx.NewId()
+ID_ToolBar_ZoomImageSpin = wx.NewId()
 ID_ToolBar_GeneratePreview = wx.NewId()
 
 #参数区
