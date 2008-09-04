@@ -3,6 +3,7 @@ import re
 import os,sys
 import cPickle as pickle
 import wx
+import math
 
 def RGB2Hex(rgb):
     return "%02X%02X%02X" % rgb
@@ -28,6 +29,10 @@ def IsInt(s):
     pattern = '^[1-9]\d*$'
     return re.search(pattern, s) != None
 
+def IsIntOrZero(s):
+    pattern = '^[1-9]\d*$|^0$'
+    return re.search(pattern, s) != None
+
 def GetPathName(s):
     '''
     返回路径
@@ -46,7 +51,7 @@ def SaveToDisk(obj, filename):
     '''
     把对象保存到硬盘
     '''
-    f = open(filename, 'w')
+    f = open(filename, 'wb')
     try:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
     finally:
@@ -57,7 +62,7 @@ def LoadFromDisk(filename):
     从硬盘加载对象
     '''
     if os.path.exists(filename) and os.path.isfile(filename):
-        f = open(filename, 'r')
+        f = open(filename, 'rb')
         try:
             result = pickle.load(f)
         finally:
@@ -65,3 +70,6 @@ def LoadFromDisk(filename):
     else:
         result = None
     return result
+
+def GetRGBDistance(rgb1, rgb2):
+    return math.sqrt((rgb1[0] - rgb2[0])**2 + (rgb1[1] - rgb2[1])**2 + (rgb1[2] - rgb2[2])**2)
