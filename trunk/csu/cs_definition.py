@@ -43,6 +43,9 @@ ID_Panel_Work_ImageReview = wx.NewId()
 #Log区
 ID_Panel_Log = wx.NewId()
 
+#绣线区
+ID_Panel_Floss = wx.NewId()
+
 from wx.lib.embeddedimage import PyEmbeddedImage
 
 IMAGE_APP_ICON = PyEmbeddedImage(
