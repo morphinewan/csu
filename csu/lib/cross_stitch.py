@@ -5,10 +5,27 @@ import wx.lib.newevent
 import time
 import func as Common
 
-(UpdateCrossStitchEvent, EVT_UPDATE_CROSS_STITCH) = wx.lib.newevent.NewEvent()
+(FlossMapLoadedEvent, EVT_FLOSSMAP_LOADED) = wx.lib.newevent.NewEvent()
 
-EVENT_PREVIEW_GENERATING = 1
-EVENT_PREVIEW_GENERATED = 2
+(PIGenerateStartEvent, EVT_PI_GENERATE_START) = wx.lib.newevent.NewEvent()
+(PIGenerateEndEvent, EVT_PI_GENERATE_END) = wx.lib.newevent.NewEvent()
+(PIResizedEvent, EVT_PI_RESIZED) = wx.lib.newevent.NewEvent()
+(PIColourTableChangeStartEvent, EVT_PI_COLOURTABLE_CHANGE_START) = wx.lib.newevent.NewEvent()
+(PIColourTableChangeEndEvent, EVT_PI_COLOURTABLE_CHANGE_END) = wx.lib.newevent.NewEvent()
+(PIColourTableChangingEvent, EVT_PI_COLOURTABLE_CHANGING) = wx.lib.newevent.NewEvent()
+
+(PIColourDistMixStartEvent, EVT_PI_COLOUR_DIST_MIX_START) = wx.lib.newevent.NewEvent()
+(PIColourDistMixEndEvent, EVT_PI_COLOUR_DIST_MIX_END) = wx.lib.newevent.NewEvent()
+(PIColourDistMixingEvent, EVT_PI_COLOUR_DIST_MIXING) = wx.lib.newevent.NewEvent()
+
+(PIMaxColourNumReduceStartEvent, EVT_PI_MAX_COLOUR_NUM_REDUCE_START) = wx.lib.newevent.NewEvent()
+(PIMaxColourNumReduceEndEvent, EVT_PI_MAX_COLOUR_NUM_REDUCE_END) = wx.lib.newevent.NewEvent()
+(PIMaxColourNumReducingEvent, EVT_PI_MAX_COLOUR_NUM_REDUCING) = wx.lib.newevent.NewEvent()
+
+(PIMinFlossNumReduceStartEvent, EVT_PI_MIN_FLOSS_NUM_REDUCE_START) = wx.lib.newevent.NewEvent()
+(PIMinFlossNumReduceEndEvent, EVT_PI_MIN_FLOSS_NUM_REDUCE_END) = wx.lib.newevent.NewEvent()
+(PIMinFlossNumReducingEvent, EVT_PI_MIN_FLOSS_NUM_REDUCING) = wx.lib.newevent.NewEvent()
+
 
 class Floss():
     '''
@@ -32,27 +49,20 @@ class FlossMap():
     '''
     颜色映射表
     '''       
-    def __init__(self):
+    def __init__(self, sender):
         self.__savedFlg = True
         self.__fl = None
+        self.__sender = sender
     
-    def Load(self, callback = None):
+    def Load(self):
         '''
         加载flossmap
         '''
         if not self.__fl:
-            self.__fl = self.__LoadMap()
+            self.__fl = Common.LoadFromDisk(Common.GetAppPath() + "/flossmap.dat")
             if not self.__fl:
                 self.__fl = {}
-            if callback:
-                callback()
-    
-    def __LoadMap(self):
-        '''
-         加载颜色映射表
-                程序中使用的都是RGB形式，保存为Hex形式
-        '''
-        return Common.LoadFromDisk(Common.GetAppPath() + "/flossmap.dat")
+            wx.PostEvent(self.__sender, FlossMapLoadedEvent())
     
     def SaveData(self):
         Common.SaveToDisk(self.__fl, Common.GetAppPath() + "/flossmap.dat")
@@ -78,15 +88,14 @@ class CrossStitch():
     '''
     十字绣对象
     '''
-    def __init__(self, filename, logger, flossmap, sender):
+    def __init__(self, filename, flossmap, sender):
         #定义原图
         self.__sourceimage = (filename, wx.Image(filename))
         #定义预览图
         self.__previewimage = None
-        #定义日志记录器
-        self.__logger = logger
         #颜色映射表
         self.__flossmap = flossmap
+        #定义事件发送对象
         self.__sender = sender
         
     def GetSourceImage(self):
@@ -112,40 +121,46 @@ class CrossStitch():
             self.__previewimage.Destroy()
             del self.__previewimage
             
+    def GetPreviewImage(self):
+        '''
+        取得预览图
+        '''       
+        return self.__previewimage
+    
     def GeneratePreviewImage(self, dic_args):
         '''
         #生成预览图片
         '''
+        wx.PostEvent(self.__sender, PIGenerateStartEvent())
+        #处理背景色
+        rgb = Common.Hex2RGB(dic_args["BgColour"])
+        self.__BackgroundColor = self.__GetMinDistanceColor(rgb[0], rgb[1], rgb[2])
+        #生成图片
         self.__previewimage = self.__GeneratePreviewImage(dic_args)
-        #完成事件
-        evt = UpdateCrossStitchEvent(type=EVENT_PREVIEW_GENERATED)
-        wx.PostEvent(self.__sender, evt)
+        wx.PostEvent(self.__sender, PIGenerateEndEvent())
         
-    def GetPreviewImage(self):
-        '''
-        取得预览图
-        '''
-        #如果传递参数，则重新做成预览图       
-        if self.__previewimage:
-            return self.__previewimage
-        else:
-            return None
-    
+    def GetFlossSummary(self):
+        result = []
+        for floss in self.__GetFlossSummary(self.GetPreviewImage()):
+            result.append([COLOR_TABLE[floss[0]], floss[1]])
+        return result
       
     def __GeneratePreviewImage(self, dic_args):
         '''
         根据参数作成预览图
         '''
-        self.__logger.Clear()
         im = self.__sourceimage[1]
         #计算绣图像素级大小
         (w, h) = self.__GetStitchSize(im.GetSize(), dic_args)
         #把原图片按照格子数重新Resize
-        self.__logger.Log(u"调整分辨率大小为(%d, %d)" % (w, h))
         new_im = im.Scale(w, h)
-        self.__logger.Log(u"更换图片调色板为绣图专用DMC颜色")
+        wx.PostEvent(self.__sender, PIResizedEvent(width=w, height=h))
+        wx.PostEvent(self.__sender, PIColourTableChangeStartEvent())
+        #替换调色板
         new_im = self.__ChangeColorTable(new_im)
-        
+        #减少颜色数
+        new_im = self.__ReduceFloss(new_im, dic_args)
+        wx.PostEvent(self.__sender, PIColourTableChangeEndEvent())
         return new_im
     
     def __GetStitchSize(self, size, dic_args):
@@ -203,13 +218,13 @@ class CrossStitch():
             for y in range(im.GetHeight()):
                 rgb = self.__GetMinDistanceColor(im.GetRed(x, y), im.GetGreen(x, y), im.GetBlue(x, y))
                 im.SetRGB(x, y, rgb[0], rgb[1], rgb[2])
-                evt = UpdateCrossStitchEvent(type=EVENT_PREVIEW_GENERATING, min=min, max=max, pos=pos)
+                evt = PIColourTableChangingEvent(min=min, max=max, pos=pos)
                 wx.PostEvent(self.__sender, evt)
                 pos += 1
         #保存颜色映射表
         self.__flossmap.SaveData()
         return im
-    
+        
     def __GetMinDistanceColor(self, red, green, blue):
         '''
         求颜色表中距离目标颜色最短的颜色
@@ -229,23 +244,138 @@ class CrossStitch():
                     break
             #将该映射关系补充道颜色映射表中
             self.__flossmap.AppendData((red, green, blue), min[0])
-            return min[0] 
-        
-class Logger():
-    '''
-    Log记录器, 抽象类
-    '''
-    def Log(self, content):
-        pass
+            return min[0]
     
-    def Clear(self):
-        pass
+    def __GetFlossSummary(self, im):
+        '''
+        求绣线使用统计
+              返回按使用量来倒序排列的dic
+        '''
+        result = {}
+        for x in range(im.GetWidth()):
+            for y in range(im.GetHeight()):
+                rgb = (im.GetRed(x, y), im.GetGreen(x, y), im.GetBlue(x, y))
+                if rgb != self.__BackgroundColor:
+                    if result.has_key(rgb):
+                        result[rgb] += 1
+                    else:
+                        result[rgb] = 1
+        #根据数量排序返回数据，格式为 （(r,g,b), number)
+        return sorted(result.items(), key = lambda i : i[1])
     
+    def __MergePixelColor(self, im, rgb):     
+        '''
+        将图片中的特定颜色和周围颜色混合
+        '''
+        #搜索所有的像素点
+        for x in range(im.GetWidth()):
+            for y in range(im.GetHeight()):
+                if (im.GetRed(x, y), im.GetGreen(x, y), im.GetBlue(x, y)) == rgb:
+                    #找到目标像素,寻找上下左右四个元素的颜色，按出现最多的颜色赋值   
+                    result = [self.__BackgroundColor, sys.maxint]
+                    #左边
+                    if x != 0 and (im.GetRed(x - 1, y), im.GetGreen(x - 1, y), im.GetBlue(x - 1, y)) != rgb:
+                        distence = Common.GetRGBDistance((im.GetRed(x, y), im.GetGreen(x, y), im.GetBlue(x, y)), 
+                                                         (im.GetRed(x - 1, y), im.GetGreen(x - 1, y), im.GetBlue(x - 1, y)))
+                        if distence < result[1]:
+                            result[0] = (im.GetRed(x - 1, y), im.GetGreen(x - 1, y), im.GetBlue(x - 1, y))
+                            result[1] = distence
+                    #上边
+                    if y != 0 and (im.GetRed(x, y - 1), im.GetGreen(x, y - 1), im.GetBlue(x, y - 1)) != rgb:
+                        distence = Common.GetRGBDistance((im.GetRed(x, y), im.GetGreen(x, y), im.GetBlue(x, y)), 
+                                                         (im.GetRed(x, y - 1), im.GetGreen(x, y - 1), im.GetBlue(x, y - 1)))
+                        if distence < result[1]:
+                            result[0] = (im.GetRed(x, y - 1), im.GetGreen(x, y - 1), im.GetBlue(x, y - 1))
+                            result[1] = distence
+                    #右边
+                    if x != im.GetWidth() - 1 and (im.GetRed(x + 1, y), im.GetGreen(x + 1, y), im.GetBlue(x + 1, y)) != rgb:
+                        distence = Common.GetRGBDistance((im.GetRed(x, y), im.GetGreen(x, y), im.GetBlue(x, y)), 
+                                                         (im.GetRed(x + 1, y), im.GetGreen(x + 1, y), im.GetBlue(x + 1, y)))
+                        if distence < result[1]:
+                            result[0] = (im.GetRed(x + 1, y), im.GetGreen(x + 1, y), im.GetBlue(x + 1, y))
+                            result[1] = distence
+                    #下边
+                    if y != im.GetHeight() - 1 and (im.GetRed(x, y + 1), im.GetGreen(x, y + 1), im.GetBlue(x, y + 1)) != rgb:
+                        distence = Common.GetRGBDistance((im.GetRed(x, y), im.GetGreen(x, y), im.GetBlue(x, y)), 
+                                                         (im.GetRed(x, y + 1), im.GetGreen(x, y + 1), im.GetBlue(x, y + 1)))
+                        if distence < result[1]:
+                            result[0] = (im.GetRed(x, y + 1), im.GetGreen(x, y + 1), im.GetBlue(x, y + 1))
+                            result[1] = distence
+                    im.SetRGB(x, y, result[0][0], result[0][1], result[0][2])
+    
+    def __ReduceFloss(self, im, dic_args):
+        '''
+        减少绣线数量
+        '''
+        summary = self.__GetFlossSummary(im)
+        total = len(summary)
+        count = 0
+        if dic_args["MixColourDist"]:
+            #合并颜色相近像素
+            wx.PostEvent(self.__sender, PIColourDistMixStartEvent(total=total))
+            mapping_table = {}#映射表
+            for i in range(len(summary)):
+                for j in range(i+1, len(summary)):
+                    #如果两种颜色小于特定距离，则记录在映射表里面
+                    dist = Common.GetRGBDistance(summary[i][0], summary[j][0])
+                    if dist <= dic_args["MixColourDist"]:
+                        if mapping_table.has_key(summary[i][0]):
+                            #如果存在key，则判断是否距离更小
+                            if mapping_table[summary[i][0]][1] > dist:
+                                mapping_table[summary[i][0]] = [summary[j][0], dist]
+                        else:
+                            mapping_table[summary[i][0]] = [summary[j][0], dist]
+            #统合映射表
+            for item in mapping_table.iteritems():
+                value = item[1]
+                while mapping_table.has_key(value[0]):
+                    value = mapping_table[value[0]]
+                mapping_table[item[0]] = value
+            total = len(mapping_table)
+            for item in mapping_table.iteritems():
+                #根据映射表，替代颜色
+                im.Replace(item[0][0], item[0][1], item[0][2], item[1][0][0], item[1][0][1], item[1][0][2])
+                wx.PostEvent(self.__sender, PIColourDistMixingEvent(total=total, count=count))
+                count += 1
+            summary = self.__GetFlossSummary(im)
+            total = len(summary)
+            count = 0
+            wx.PostEvent(self.__sender, PIColourDistMixEndEvent(total=total))
+        if dic_args["MaxColourNum"]  or dic_args["MinFlossNum"]:
+            #取得绣线使用统计
+            if dic_args["MaxColourNum"]:
+                wx.PostEvent(self.__sender, PIMaxColourNumReduceStartEvent(total=total, param=dic_args["MaxColourNum"]))
+                #限定最多使用线量
+                #如果实际颜色数大于要求数
+                total = len(summary) - dic_args["MaxColourNum"]
+                while len(summary) > dic_args["MaxColourNum"]:
+                    self.__MergePixelColor(im, summary[0][0])
+                    wx.PostEvent(self.__sender, PIMaxColourNumReducingEvent(total=total, count=count))
+                    count += 1
+                    summary = self.__GetFlossSummary(im)
+                total = len(summary)
+                count = 0
+                wx.PostEvent(self.__sender, PIMaxColourNumReduceEndEvent(total=total, param=dic_args["MaxColourNum"]))                
+            if dic_args["MinFlossNum"]:                
+                wx.PostEvent(self.__sender, PIMinFlossNumReduceStartEvent(total=total, param=dic_args["MinFlossNum"]))
+                #剔除使用量少于特定值的线条
+                #如果检索到数量大于特定值的，则跳出不做了
+                while summary[0][1]  < dic_args["MinFlossNum"]:
+                    self.__MergePixelColor(im, summary[0][0])
+                    wx.PostEvent(self.__sender, PIMinFlossNumReducingEvent(total=total, count=count))
+                    count += 1
+                    summary = self.__GetFlossSummary(im)
+                    if len(summary) == 0:
+                        break
+                total = len(summary)
+                count = total
+                wx.PostEvent(self.__sender, PIMinFlossNumReduceEndEvent(total=total, param=dic_args["MinFlossNum"])) 
+        return im
+
 def LoadColorTable():
     '''
     加载绣线颜色表
     '''
-    print "Loading Color Table"
     path = Common.GetAppPath() + "/colortable.dat"
     if os.path.exists(path) and os.path.isfile(path):
         result = Common.LoadFromDisk(path)
