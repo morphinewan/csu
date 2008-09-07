@@ -166,13 +166,23 @@ class MainFrame(wx.Frame):
     
     def OnPreviewImageMinFlossNumReduceStart(self, event):
         self.__log_panel.Log((u"剔除使用量少于%d格的线条开始，目前颜色数总共%d色" % (event.param, event.total)))
+        self.__prodlg = wx.ProgressDialog(u"进度条",
+                               u"剔除使用量少于%d格的线条" % event.param,
+                               maximum=100,
+                               parent=self,
+                               style = wx.PD_APP_MODAL
+                                | wx.PD_AUTO_HIDE
+                                | wx.PD_SMOOTH 
+                                )
         
     def OnPreviewImageMinFlossNumReducing(self, event):
-        pass
+        self.__prodlg.Update(event.count * 100 / event.total)
         
     def OnPreviewImageMinFlossNumReduceEnd(self, event):
         self.__log_panel.Log((u"剔除使用量少于%d格的线条结束，目前颜色数总共%d色" % (event.param, event.total)))
-    
+        if self.__prodlg:
+            self.__prodlg.Destroy()
+            
     def OnPreviewImageMaxColourNumReduceStart(self, event):
         self.__log_panel.Log((u"限定颜色数最高为%d色处理开始，目前颜色数总共%d色" % (event.param, event.total)))
         self.__prodlg = wx.ProgressDialog(u"进度条",
@@ -191,7 +201,7 @@ class MainFrame(wx.Frame):
         self.__log_panel.Log((u"限定颜色数最高为%d色处理结束，目前颜色数总共%d色" % (event.param, event.total)))
         if self.__prodlg:
             self.__prodlg.Destroy()
-    
+            
     def OnPreviewImageColourDistMixStart(self, event):
         self.__log_panel.Log((u"合并颜色相近绣线开始，目前颜色数总共%d色" % event.total))
         self.__prodlg = wx.ProgressDialog(u"进度条",
@@ -210,7 +220,7 @@ class MainFrame(wx.Frame):
         self.__log_panel.Log((u"合并颜色相近绣线结束，目前颜色数总共%d色" % event.total))
         if self.__prodlg:
             self.__prodlg.Destroy()
-    
+            
     def OnPreviewImageResized(self, event):
         self.__log_panel.Log((u"调整分辨率大小为(%d, %d)" % (event.width, event.height)))
     

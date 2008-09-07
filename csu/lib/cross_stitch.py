@@ -26,6 +26,17 @@ import func as Common
 (PIMinFlossNumReduceEndEvent, EVT_PI_MIN_FLOSS_NUM_REDUCE_END) = wx.lib.newevent.NewEvent()
 (PIMinFlossNumReducingEvent, EVT_PI_MIN_FLOSS_NUM_REDUCING) = wx.lib.newevent.NewEvent()
 
+(PICropSideStartEvent, EVT_PI_CROPSIDE_START) = wx.lib.newevent.NewEvent()
+(PICropSideEndEvent, EVT_PI_CROPSIDE_END) = wx.lib.newevent.NewEvent()
+(PICropSidingEvent, EVT_PI_CROPSIDING) = wx.lib.newevent.NewEvent()
+
+(PIAntiNoiseStartEvent, EVT_PI_ANTINOISE_START) = wx.lib.newevent.NewEvent()
+(PIAntiNoiseEndEvent, EVT_PI_ANTINOISE_END) = wx.lib.newevent.NewEvent()
+(PIAntiNoisingEvent, EVT_PI_ANTINOISING) = wx.lib.newevent.NewEvent()
+
+(PIAntiBGColourStartEvent, EVT_PI_ANTIBGCOLOUR_START) = wx.lib.newevent.NewEvent()
+(PIAntiBGColourEndEvent, EVT_PI_ANTIBGCOLOUR_END) = wx.lib.newevent.NewEvent()
+(PIAntiBGColouringEvent, EVT_ANTIBGCOLOURING) = wx.lib.newevent.NewEvent()
 
 class Floss():
     '''
@@ -161,6 +172,22 @@ class CrossStitch():
         #减少颜色数
         new_im = self.__ReduceFloss(new_im, dic_args)
         wx.PostEvent(self.__sender, PIColourTableChangeEndEvent())
+        #裁边
+        if dic_args["CropSide"]:
+            wx.PostEvent(self.__sender, PICropSideStartEvent())
+            new_im = self.__CropSide(new_im)
+            wx.PostEvent(self.__sender, PICropSideEndEvent())
+        #反噪点
+        if dic_args["AntiNoise"]:
+            wx.PostEvent(self.__sender, PIAntiNoiseStartEvent())
+            new_im = self.__AntiNoise(new_im)
+            wx.PostEvent(self.__sender, PIAntiNoiseEndEvent())
+        #除去背景相近颜色
+        if dic_args["AntiBgColour"]:
+            wx.PostEvent(self.__sender, PIAntiBGColourStartEvent())
+            new_im = self.__AntiBgColor(new_im, dic_args["MixColourDist"])
+            wx.PostEvent(self.__sender, PIAntiBGColourEndEvent())
+        
         return new_im
     
     def __GetStitchSize(self, size, dic_args):
@@ -371,7 +398,79 @@ class CrossStitch():
                 count = total
                 wx.PostEvent(self.__sender, PIMinFlossNumReduceEndEvent(total=total, param=dic_args["MinFlossNum"])) 
         return im
-
+        
+    def __CropSide(self, im):
+        '''
+        裁剪边框
+        '''
+        x1, y1, x2, y2 = 0, 0, im.GetWidth(), im.GetHeight()
+        #处理顶部
+        while self.__IsAllPixelBackgroundColor(im, row = y1):
+            y1 += 1
+        #处理底部
+        while self.__IsAllPixelBackgroundColor(im, row = y2 - 1):
+            y2 -= 1
+        #处理左部
+        while self.__IsAllPixelBackgroundColor(im, col = x1):
+            x1 += 1
+        #处理右部
+        while self.__IsAllPixelBackgroundColor(im, col = x2 - 1):
+            x2 -= 1
+        return im.GetSubImage((x1, y1, x2, y2))
+    
+    def __IsAllPixelBackgroundColor(self, im, col = -1, row  = -1):
+        '''
+        检查某行某列是否为全空
+        '''
+        checkFlg = True
+        if row > -1:
+            for i in range(im.GetWidth()):
+                if (im.GetRed(i, row), im.GetGreen(i, row), im.GetBlue(i, row)) != self.__BackgroundColor:
+                    checkFlg = False
+                    break
+        elif col > -1:
+            for i in range(im.GetHeight()):
+                if (im.GetRed(col, i), im.GetGreen(col, i), im.GetBlue(col, i)) != self.__BackgroundColor:
+                    checkFlg = False
+                    break
+        return checkFlg
+    
+    def __AntiNoise(self, im):
+        '''
+        反噪点
+        '''
+        total = im.GetWidth() * im.GetHeight()
+        count = 0
+        for i in range(im.GetWidth()):
+            for j in range(im.GetHeight()):
+                wx.PostEvent(self.__sender, PIAntiNoisingEvent(count=0, total=total))
+                count += 1
+                if i > 0 and (im.GetRed(i - 1, j), im.GetGreen(i - 1, j), im.GetBlue(i - 1, j)) != self.__BackgroundColor:
+                    continue
+                if j > 0 and (im.GetRed(i, j - 1), im.GetGreen(i, j - 1), im.GetBlue(i, j - 1)) != self.__BackgroundColor:
+                    continue
+                if i < im.GetWidth() - 1 and (im.GetRed(i + 1, j), im.GetGreen(i + 1, j), im.GetBlue(i + 1, j)) != self.__BackgroundColor:
+                    continue
+                if j < im.GetHeight() - 1 and (im.GetRed(i, j + 1), im.GetGreen(i, j + 1), im.GetBlue(i, j + 1)) != self.__BackgroundColor:
+                    continue
+                im.SetRGB(i, j, self.__BackgroundColor[0], self.__BackgroundColor[1], self.__BackgroundColor[2])
+        return im
+    
+    def __AntiBgColor(self, im, dist):
+        '''
+        去除和背景颜色相近的颜色
+        '''
+        total = im.GetWidth() * im.GetHeight()
+        count = 0
+        for i in range(im.GetWidth()):
+            for j in range(im.GetHeight()):
+                wx.PostEvent(self.__sender, PIAntiBGColouringEvent(count=0, total=total))
+                count += 1
+                if (im.GetRed(i, j), im.GetGreen(i, j), im.GetBlue(i, j)) != self.__BackgroundColor \
+                    and Common.GetRGBDistance((im.GetRed(i, j), im.GetGreen(i, j), im.GetBlue(i, j)), self.__BackgroundColor) <= dist:
+                    im.SetRGB(i, j, self.__BackgroundColor[0], self.__BackgroundColor[1], self.__BackgroundColor[2])
+        return im
+        
 def LoadColorTable():
     '''
     加载绣线颜色表
