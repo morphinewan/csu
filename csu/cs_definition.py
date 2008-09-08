@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import wx
+import wx.lib.newevent
 #系统设置
 Application_Settings = {}
 
@@ -9,6 +10,12 @@ ID_MenuItem_Exit = wx.NewId()
 ID_MenuItem_About = wx.NewId()
 ID_MenuItem_ShowOptionPanel = wx.NewId()
 ID_MenuItem_ShowLogPanel = wx.NewId()
+
+ID_MenuItem_ShowImageFormat1 = wx.NewId()
+ID_MenuItem_ShowImageFormat2 = wx.NewId()
+#ID_MenuItem_ShowImageFormat3 = wx.NewId()
+
+ID_MenuItem_Debug = wx.NewId()
 #工具栏
 ID_ToolBar_ShowOptionPanel = wx.NewId()
 ID_ToolBar_ShowLogPanel = wx.NewId()
@@ -37,14 +44,18 @@ ID_Option_ForTaobao = wx.NewId()
 ID_Option_DisabledBgColour = wx.NewId()
 
 #图片区ID
-ID_Panel_Work = wx.NewId()
-ID_Panel_Work_ImageReview = wx.NewId()
+#ID_Panel_Work = wx.NewId()
+ID_Frame_Work_ImageReviewPanel = wx.NewId()
+ID_Frame_Work_ImageReview = wx.NewId()
 
 #Log区
 ID_Panel_Log = wx.NewId()
 
 #绣线区
 ID_Panel_Floss = wx.NewId()
+
+(WorkFrameMouseMoveEvent, EVT_WORK_FRAME_MOUSE_MOVE_EVENT) = wx.lib.newevent.NewEvent()
+(WorkFrameCloseEvent, EVT_WORK_FRAME_CLOSE_EVENT) = wx.lib.newevent.NewEvent()
 
 from wx.lib.embeddedimage import PyEmbeddedImage
 

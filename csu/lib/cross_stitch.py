@@ -109,6 +109,19 @@ class CrossStitch():
         #定义事件发送对象
         self.__sender = sender
         
+        self.__BoldGridLinePerStitch = 10  #多少格子显示粗线条
+        self.__NormalGridLineWidth = 1     #普通线条宽度
+        self.__BoldGridLineWidth = 5      #粗线条宽度
+        self.__StitchSize = 22             #一个格子占据多少像素
+        
+        self.__MaxColorNumber = 150 #支持最多的颜色数        
+        
+        #绣图标记
+        self.__Symbols = range(0x0030, 0x005B)
+        self.__Symbols.extend(range(0x0061, 0x007B))
+        self.__Symbols.extend(range(0x2190, 0x2199))
+        self.__Symbols.extend(range(0x2460, 0x2500))
+        
     def GetSourceImage(self):
         '''
         获取原图
@@ -138,6 +151,12 @@ class CrossStitch():
         '''       
         return self.__previewimage
     
+    def GetStitchConvas(self):
+        '''
+        取得绣图
+        '''
+        return self.__stitchconvas
+    
     def GeneratePreviewImage(self, dic_args):
         '''
         #生成预览图片
@@ -148,6 +167,7 @@ class CrossStitch():
         self.__BackgroundColor = self.__GetMinDistanceColor(rgb[0], rgb[1], rgb[2])
         #生成图片
         self.__previewimage = self.__GeneratePreviewImage(dic_args)
+        self.__stitchconvas = self.__GetStitchConvas(self.__previewimage, dic_args)        
         wx.PostEvent(self.__sender, PIGenerateEndEvent())
         
     def GetFlossSummary(self):
@@ -166,9 +186,10 @@ class CrossStitch():
         #把原图片按照格子数重新Resize
         new_im = im.Scale(w, h)
         wx.PostEvent(self.__sender, PIResizedEvent(width=w, height=h))
-        wx.PostEvent(self.__sender, PIColourTableChangeStartEvent())
         #替换调色板
+        wx.PostEvent(self.__sender, PIColourTableChangeStartEvent())       
         new_im = self.__ChangeColorTable(new_im)
+        wx.PostEvent(self.__sender, PIColourTableChangeEndEvent())
         #减少颜色数
         new_im = self.__ReduceFloss(new_im, dic_args)
         wx.PostEvent(self.__sender, PIColourTableChangeEndEvent())
@@ -186,8 +207,7 @@ class CrossStitch():
         if dic_args["AntiBgColour"]:
             wx.PostEvent(self.__sender, PIAntiBGColourStartEvent())
             new_im = self.__AntiBgColor(new_im, dic_args["MixColourDist"])
-            wx.PostEvent(self.__sender, PIAntiBGColourEndEvent())
-        
+            wx.PostEvent(self.__sender, PIAntiBGColourEndEvent())        
         return new_im
     
     def __GetStitchSize(self, size, dic_args):
@@ -443,7 +463,7 @@ class CrossStitch():
         count = 0
         for i in range(im.GetWidth()):
             for j in range(im.GetHeight()):
-                wx.PostEvent(self.__sender, PIAntiNoisingEvent(count=0, total=total))
+                wx.PostEvent(self.__sender, PIAntiNoisingEvent(count=count, total=total))
                 count += 1
                 if i > 0 and (im.GetRed(i - 1, j), im.GetGreen(i - 1, j), im.GetBlue(i - 1, j)) != self.__BackgroundColor:
                     continue
@@ -464,11 +484,78 @@ class CrossStitch():
         count = 0
         for i in range(im.GetWidth()):
             for j in range(im.GetHeight()):
-                wx.PostEvent(self.__sender, PIAntiBGColouringEvent(count=0, total=total))
+                wx.PostEvent(self.__sender, PIAntiBGColouringEvent(count=count, total=total))
                 count += 1
                 if (im.GetRed(i, j), im.GetGreen(i, j), im.GetBlue(i, j)) != self.__BackgroundColor \
                     and Common.GetRGBDistance((im.GetRed(i, j), im.GetGreen(i, j), im.GetBlue(i, j)), self.__BackgroundColor) <= dist:
                     im.SetRGB(i, j, self.__BackgroundColor[0], self.__BackgroundColor[1], self.__BackgroundColor[2])
+        return im
+        
+    def __GetStitchConvas(self, source_im, dic_args, mask_dic = None):
+        '''
+        转换绣图，带边框
+        '''
+        w, h = source_im.GetWidth(), source_im.GetHeight()
+        #计算带边框后的图像像素值
+        #1.扩大像素为马赛克块后的数值
+        w_total = w * (self.__StitchSize + self.__NormalGridLineWidth) #加上右边和下边两条边框
+        h_total = h * (self.__StitchSize + self.__NormalGridLineWidth)
+        #如果宽度大于一个基本的格子，则开始计算粗线条（默认整体图片边框为非粗线条）
+        if w > self.__BoldGridLinePerStitch:        
+            if w % self.__BoldGridLinePerStitch:  
+                #如果宽度不能整除格子宽度，则表示图像内部的粗线条数等于格子数       
+                w_total = w_total + (w // self.__BoldGridLinePerStitch) * (self.__BoldGridLineWidth - self.__NormalGridLineWidth) 
+            else:
+                #如果宽度整除格子宽度，则表示图像内部的粗线条数等于格子数-1
+                w_total = w_total + (w // self.__BoldGridLinePerStitch - 1) * (self.__BoldGridLineWidth - self.__NormalGridLineWidth)
+        if h > self.__BoldGridLinePerStitch:
+            if h % self.__BoldGridLinePerStitch:            
+                h_total = h_total + (h // self.__BoldGridLinePerStitch) * (self.__BoldGridLineWidth - self.__NormalGridLineWidth)
+            else:
+                h_total = h_total + (h // self.__BoldGridLinePerStitch - 1) * (self.__BoldGridLineWidth - self.__NormalGridLineWidth)
+        #再处理顶部和左部的边框，默认为细边框
+        w_total = w_total + self.__BoldGridLineWidth * 2 - self.__NormalGridLineWidth
+        h_total = h_total + self.__BoldGridLineWidth * 2 - self.__NormalGridLineWidth
+        #根据最新的大小，新建一个图像
+        im = wx.EmptyImage(w_total, h_total)
+        #第一行第一列定位
+        x = y = self.__BoldGridLineWidth
+        for j in range(h):
+            for i in range(w):
+                #循环处理各行各列
+                if mask_dic:
+                    #如果参数mask_dic存在的话，则表示这是在输出正式绣图
+                    if (source_im.GetRed(i, j), source_im.GetGreen(i, j), source_im.GetBlue(i, j)) == self.__BackgroundColor:
+                        if dic_args["DisabledBgColour"]:#如果禁止输出背景色，则输出白色
+                            im.SetRGBRect(wx.Rect(x, y, self.__StitchSize, self.__StitchSize), 255, 255, 255)
+                        else:
+                            im.SetRGBRect(wx.Rect(x, y, self.__StitchSize, self.__StitchSize), \
+                                          source_im.GetRed(i, j), source_im.GetGreen(i, j), source_im.GetBlue(i, j))
+                    else:
+                        mask = mask_dic[(source_im.GetRed(i, j), source_im.GetGreen(i, j), source_im.GetBlue(i, j))]
+                        im.SetRGBRect(wx.Rect(x, y, x + self.__StitchSize, y + self.__StitchSize), mask[0], mask[1], mask[2])
+                else:
+                    #否则则是在输出预览图
+                    im.SetRGBRect(wx.Rect(x, y, self.__StitchSize, self.__StitchSize), \
+                                          source_im.GetRed(i, j), source_im.GetGreen(i, j), source_im.GetBlue(i, j))
+                #加上绣格块宽度
+                x = x + self.__StitchSize
+                #如果下一列正好是新的一块开始格子，则横坐标必须加上粗线条宽度
+                if (i + 1) % self.__BoldGridLinePerStitch:
+                    x = x + self.__NormalGridLineWidth
+                else:
+                    #否则加上细线条
+                    x = x + self.__BoldGridLineWidth
+            #初始化横坐标
+            x = self.__BoldGridLineWidth
+            #加上绣格块宽度
+            y = y + self.__StitchSize
+            #如果下一列正好是新的一块开始格子，则纵坐标必须加上粗线条宽度
+            if (j + 1) % self.__BoldGridLinePerStitch:
+                y = y + self.__NormalGridLineWidth
+            else:
+                #否则加上细线条
+                y = y + self.__BoldGridLineWidth
         return im
         
 def LoadColorTable():

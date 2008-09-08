@@ -30,11 +30,19 @@ class MainFrame(wx.Frame):
         mb.Append(file_menu, u"文件")
         
         view_menu = wx.Menu()
+        view_menu.Append(ID_MenuItem_ShowImageFormat1, u"显示效果图", u"显示效果图")
+        view_menu.Append(ID_MenuItem_ShowImageFormat2, u"显示绣图", u"显示绣图")
+#        view_menu.Append(ID_MenuItem_ShowImageFormat3, u"显示绣图输出预览", u"显示绣图输出预览")
+        
         sub_menu = wx.Menu()
         menu_item = sub_menu.AppendCheckItem(ID_MenuItem_ShowOptionPanel, u"选项面板", u"打开或者关闭选项面板")
         menu_item = sub_menu.AppendCheckItem(ID_MenuItem_ShowLogPanel, u"日志面板", u"打开或者关闭日志面板")
         view_menu.AppendSubMenu(sub_menu, u"面板")
         mb.Append(view_menu, u"查看")
+        
+        debug_menu = wx.Menu()
+        debug_menu.Append(ID_MenuItem_Debug, "Debug")        
+        mb.Append(debug_menu, u"调试")
         
         self.SetMenuBar(mb)
         #Toolbar
@@ -86,10 +94,12 @@ class MainFrame(wx.Frame):
                           wx.aui.AuiPaneInfo().Name("option_panel").Caption(u"选项").Left()
                           .CloseButton(False).TopDockable(False).BottomDockable(False).MaximizeButton(True))
         
-        #右部工作区
-        self.__work_panel = self.WorkPanel(self)
-        self.__mgr.AddPane(self.__work_panel,
-                          wx.aui.AuiPaneInfo().Name("work_panel").CentrePane().MaximizeButton(True))
+#        #右部工作区
+#        self.__work_panel = self.WorkPanel(self)
+#        self.__mgr.AddPane(self.__work_panel,
+#                          wx.aui.AuiPaneInfo().Name("work_panel").CentrePane().MaximizeButton(True))
+        
+        
         
         #Log区
         self.__log_panel = self.LogPanel(self, size=(200, 150))
@@ -116,6 +126,10 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnFileOpen, id=ID_MenuItem_OpenFile)
         self.Bind(wx.EVT_MENU, self.OnMenuClick, id=ID_MenuItem_ShowOptionPanel)
         self.Bind(wx.EVT_MENU, self.OnMenuClick, id=ID_MenuItem_ShowLogPanel)
+        self.Bind(wx.EVT_MENU, self.OnDebug, id=ID_MenuItem_Debug)
+        self.Bind(wx.EVT_MENU, self.OnViewChange, id=ID_MenuItem_ShowImageFormat1)
+        self.Bind(wx.EVT_MENU, self.OnViewChange, id=ID_MenuItem_ShowImageFormat2)
+#        self.Bind(wx.EVT_MENU, self.OnViewChange, id=ID_MenuItem_ShowImageFormat3)
         
         self.Bind(wx.EVT_TOOL, self.OnFileOpen, id=ID_ToolBar_OpenFile)
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnMenuClick, id=ID_ToolBar_ShowOptionPanel)
@@ -130,21 +144,38 @@ class MainFrame(wx.Frame):
         
         self.Bind(cs.EVT_PI_GENERATE_START, self.OnPreviewImageGenerateStart)
         self.Bind(cs.EVT_PI_GENERATE_END, self.OnPreviewImageGenerateEnd)
-        self.Bind(cs.EVT_PI_COLOURTABLE_CHANGE_START, self.OnPreviewImageColourTableChangeStart)
-        self.Bind(cs.EVT_PI_COLOURTABLE_CHANGE_END, self.OnPreviewImageColourTableChangeEnd)
-        self.Bind(cs.EVT_PI_COLOURTABLE_CHANGING, self.OnPreviewImageColourTableChanging)
         self.Bind(cs.EVT_PI_RESIZED, self.OnPreviewImageResized)
-        self.Bind(cs.EVT_PI_COLOUR_DIST_MIX_START, self.OnPreviewImageColourDistMixStart)
-        self.Bind(cs.EVT_PI_COLOUR_DIST_MIXING, self.OnPreviewImageColourDistMixing)
-        self.Bind(cs.EVT_PI_COLOUR_DIST_MIX_END, self.OnPreviewImageColourDistMixEnd)
         
-        self.Bind(cs.EVT_PI_MAX_COLOUR_NUM_REDUCE_START, self.OnPreviewImageMaxColourNumReduceStart)
-        self.Bind(cs.EVT_PI_MAX_COLOUR_NUM_REDUCING, self.OnPreviewImageMaxColourNumReducing)
-        self.Bind(cs.EVT_PI_MAX_COLOUR_NUM_REDUCE_END, self.OnPreviewImageMaxColourNumReduceEnd)
+        self.Bind(cs.EVT_PI_COLOURTABLE_CHANGE_START, self.OnCSProcessStartEvent)
+        self.Bind(cs.EVT_PI_COLOURTABLE_CHANGE_END, self.OnCSProcessEndEvent)
+        self.Bind(cs.EVT_PI_COLOURTABLE_CHANGING, self.OnCSProcessingEvent)
         
-        self.Bind(cs.EVT_PI_MIN_FLOSS_NUM_REDUCE_START, self.OnPreviewImageMinFlossNumReduceStart)
-        self.Bind(cs.EVT_PI_MIN_FLOSS_NUM_REDUCING, self.OnPreviewImageMinFlossNumReducing)
-        self.Bind(cs.EVT_PI_MIN_FLOSS_NUM_REDUCE_END, self.OnPreviewImageMinFlossNumReduceEnd)
+        self.Bind(cs.EVT_PI_COLOUR_DIST_MIX_START, self.OnCSProcessStartEvent)
+        self.Bind(cs.EVT_PI_COLOUR_DIST_MIXING, self.OnCSProcessingEvent)
+        self.Bind(cs.EVT_PI_COLOUR_DIST_MIX_END, self.OnCSProcessEndEvent)
+        
+        self.Bind(cs.EVT_PI_MAX_COLOUR_NUM_REDUCE_START, self.OnCSProcessStartEvent)
+        self.Bind(cs.EVT_PI_MAX_COLOUR_NUM_REDUCING, self.OnCSProcessingEvent)
+        self.Bind(cs.EVT_PI_MAX_COLOUR_NUM_REDUCE_END, self.OnCSProcessEndEvent)
+        
+        self.Bind(cs.EVT_PI_MIN_FLOSS_NUM_REDUCE_START, self.OnCSProcessStartEvent)
+        self.Bind(cs.EVT_PI_MIN_FLOSS_NUM_REDUCING, self.OnCSProcessingEvent)
+        self.Bind(cs.EVT_PI_MIN_FLOSS_NUM_REDUCE_END, self.OnCSProcessEndEvent)
+        
+        self.Bind(cs.EVT_PI_CROPSIDE_START, self.OnCSProcessStartEvent)
+        self.Bind(cs.EVT_PI_CROPSIDING, self.OnCSProcessingEvent)
+        self.Bind(cs.EVT_PI_CROPSIDE_END, self.OnCSProcessEndEvent)
+        
+        self.Bind(cs.EVT_PI_ANTINOISE_START, self.OnCSProcessStartEvent)
+        self.Bind(cs.EVT_PI_ANTINOISING, self.OnCSProcessingEvent)
+        self.Bind(cs.EVT_PI_ANTINOISE_END, self.OnCSProcessEndEvent)
+        
+        self.Bind(cs.EVT_PI_ANTIBGCOLOUR_START, self.OnCSProcessStartEvent)
+        self.Bind(cs.EVT_ANTIBGCOLOURING, self.OnCSProcessingEvent)
+        self.Bind(cs.EVT_PI_ANTIBGCOLOUR_END, self.OnCSProcessEndEvent)
+        
+        self.Bind(EVT_WORK_FRAME_MOUSE_MOVE_EVENT, self.OnWorkFrameMouseMove)
+        self.Bind(EVT_WORK_FRAME_CLOSE_EVENT, self.OnWorkFrameCloseEvent)
         #定义待处理的图片数组
         self.__cs = []
         
@@ -164,92 +195,86 @@ class MainFrame(wx.Frame):
         #初始化界面
         self.__InitLayout()
     
-    def OnPreviewImageMinFlossNumReduceStart(self, event):
-        self.__log_panel.Log((u"剔除使用量少于%d格的线条开始，目前颜色数总共%d色" % (event.param, event.total)))
+    def OnCSProcessStartEvent(self, event):
+        #取得事件ID
+        event_type = event.GetEventType()
+        log_content = ""
+        title = ""
+        if event_type == cs.EVT_PI_CROPSIDE_START.typeId:
+            log_content = u"裁剪图片四周多余无用的空格开始"
+            title = u"裁剪图片四周多余无用的空格"
+        elif event_type == cs.EVT_PI_COLOURTABLE_CHANGE_START.typeId:
+            log_content = u"更换预览图调色板为绣图专用DMC颜色开始"
+            title = u"更换预览图调色板为绣图专用DMC颜色"
+        elif event_type == cs.EVT_PI_COLOUR_DIST_MIX_START.typeId:
+            log_content = u"合并颜色相近绣线开始，目前颜色数总共%d色" % event.total
+            title = u"合并颜色相近绣线"
+        elif event_type == cs.EVT_PI_MAX_COLOUR_NUM_REDUCE_START.typeId:
+            log_content = u"限定颜色数最高为%d色处理开始，目前颜色数总共%d色" % (event.param, event.total)
+            title = u"限定颜色数最高为%d色" % event.param
+        elif event_type == cs.EVT_PI_MIN_FLOSS_NUM_REDUCE_START.typeId:
+            log_content = u"剔除使用量少于%d格的线条开始，目前颜色数总共%d色" % (event.param, event.total)
+            title = u"剔除使用量少于%d格的线条" % event.param
+        elif event_type == cs.EVT_PI_ANTINOISE_START.typeId:
+            log_content = u"去除图片中的噪点开始"
+            title = u"去除图片中的噪点"
+        elif event_type == cs.EVT_PI_ANTIBGCOLOUR_START.typeId:
+            log_content = u"去除接近背景色的像素开始"
+            title = u"去除接近背景色的像素"
+        self.__log_panel.Log(log_content)
         self.__prodlg = wx.ProgressDialog(u"进度条",
-                               u"剔除使用量少于%d格的线条" % event.param,
-                               maximum=100,
-                               parent=self,
-                               style = wx.PD_APP_MODAL
-                                | wx.PD_AUTO_HIDE
-                                | wx.PD_SMOOTH 
-                                )
+                           title,
+                           maximum=100,
+                           parent=self,
+                           style = wx.PD_APP_MODAL
+                            | wx.PD_AUTO_HIDE
+                            | wx.PD_SMOOTH 
+                            )
         
-    def OnPreviewImageMinFlossNumReducing(self, event):
-        self.__prodlg.Update(event.count * 100 / event.total)
-        
-    def OnPreviewImageMinFlossNumReduceEnd(self, event):
-        self.__log_panel.Log((u"剔除使用量少于%d格的线条结束，目前颜色数总共%d色" % (event.param, event.total)))
-        if self.__prodlg:
-            self.__prodlg.Destroy()
-            
-    def OnPreviewImageMaxColourNumReduceStart(self, event):
-        self.__log_panel.Log((u"限定颜色数最高为%d色处理开始，目前颜色数总共%d色" % (event.param, event.total)))
-        self.__prodlg = wx.ProgressDialog(u"进度条",
-                               u"限定颜色数最高为%d色处理" % event.param,
-                               maximum=100,
-                               parent=self,
-                               style = wx.PD_APP_MODAL
-                                | wx.PD_AUTO_HIDE
-                                | wx.PD_SMOOTH 
-                                )
-        
-    def OnPreviewImageMaxColourNumReducing(self, event):
-        self.__prodlg.Update(event.count * 100 / event.total)
-        
-    def OnPreviewImageMaxColourNumReduceEnd(self, event):
-        self.__log_panel.Log((u"限定颜色数最高为%d色处理结束，目前颜色数总共%d色" % (event.param, event.total)))
-        if self.__prodlg:
-            self.__prodlg.Destroy()
-            
-    def OnPreviewImageColourDistMixStart(self, event):
-        self.__log_panel.Log((u"合并颜色相近绣线开始，目前颜色数总共%d色" % event.total))
-        self.__prodlg = wx.ProgressDialog(u"进度条",
-                               u"合并颜色相近绣线",
-                               maximum=100,
-                               parent=self,
-                               style = wx.PD_APP_MODAL
-                                | wx.PD_AUTO_HIDE
-                                | wx.PD_SMOOTH 
-                                )
-        
-    def OnPreviewImageColourDistMixing(self, event):
-        self.__prodlg.Update(event.count * 100 / event.total)
-        
-    def OnPreviewImageColourDistMixEnd(self, event):
-        self.__log_panel.Log((u"合并颜色相近绣线结束，目前颜色数总共%d色" % event.total))
+    def OnCSProcessingEvent(self, event):
+        #取得事件ID
+        event_type = event.GetEventType()
+        if event_type in (cs.EVT_PI_CROPSIDING.typeId,
+                          cs.EVT_PI_COLOUR_DIST_MIXING.typeId,
+                          cs.EVT_PI_MAX_COLOUR_NUM_REDUCING.typeId,
+                          cs.EVT_PI_MIN_FLOSS_NUM_REDUCING.typeId,
+                          cs.EVT_PI_ANTINOISING.typeId,
+                          cs.EVT_ANTIBGCOLOURING.typeId):
+            self.__prodlg.Update(event.count * 100 / event.total)
+        elif event_type == cs.EVT_PI_COLOURTABLE_CHANGING.typeId:
+            self.__prodlg.Update(event.pos * 100 / (event.max - event.min))
+    
+    def OnCSProcessEndEvent(self, event):
+        event_type = event.GetEventType()
+        log_content = ""
+        if event_type == cs.EVT_PI_CROPSIDE_END.typeId:
+            log_content = u"裁剪图片四周多余无用的空格结束"
+        elif event_type == cs.EVT_PI_COLOURTABLE_CHANGE_END.typeId:
+            log_content = u"更换预览图调色板为绣图专用DMC颜色结束"
+        elif event_type == cs.EVT_PI_COLOUR_DIST_MIX_END.typeId:
+            log_content =  u"合并颜色相近绣线结束，目前颜色数总共%d色" % event.total
+        elif event_type == cs.EVT_PI_MAX_COLOUR_NUM_REDUCE_END.typeId:
+            log_content =  u"限定颜色数最高为%d色处理结束，目前颜色数总共%d色" % (event.param, event.total)
+        elif event_type == cs.EVT_PI_MIN_FLOSS_NUM_REDUCE_END.typeId:
+            log_content =  u"剔除使用量少于%d格的线条结束，目前颜色数总共%d色" % (event.param, event.total)
+        elif event_type == cs.EVT_PI_ANTINOISE_END.typeId:
+            log_content =  u"去除图片中的噪点结束"
+        elif event_type == cs.EVT_PI_ANTIBGCOLOUR_END.typeId:    
+            log_content =  u"去除接近背景色的像素结束"
+        self.__log_panel.Log(log_content)
         if self.__prodlg:
             self.__prodlg.Destroy()
             
     def OnPreviewImageResized(self, event):
         self.__log_panel.Log((u"调整分辨率大小为(%d, %d)" % (event.width, event.height)))
     
-    def OnPreviewImageColourTableChanging(self, event):
-        self.__prodlg.Update(event.pos * 100 / (event.max - event.min))
-        
-    def OnPreviewImageColourTableChangeStart(self, event):
-        self.__log_panel.Log((u"更换预览图调色板为绣图专用DMC颜色开始"))
-        self.__prodlg = wx.ProgressDialog(u"进度条",
-                               u"更换预览图调色板为绣图专用DMC颜色",
-                               maximum=100,
-                               parent=self,
-                               style = wx.PD_APP_MODAL
-                                | wx.PD_AUTO_HIDE
-                                | wx.PD_SMOOTH 
-                                )
-    
-    def OnPreviewImageColourTableChangeEnd(self, event):
-        self.__log_panel.Log((u"更换预览图调色板为绣图专用DMC颜色完成"))
-        if self.__prodlg:
-            self.__prodlg.Destroy()
-        
     def OnPreviewImageGenerateEnd(self, event):
         self.__EnableImageTool(1)
         self.__log_panel.Log((u"预览图转换完成"))
-        self.__work_panel.ShowImage(self.__cs[0].GetPreviewImage())
-        scale = Common.CaclImageBestScale(self.__cs[0].GetPreviewImage(), self.__work_panel.GetSize())
+        self.__work_frame.ShowImage(self.__cs[0].GetPreviewImage())
+        scale = Common.CaclImageBestScale(self.__cs[0].GetPreviewImage(), self.__work_frame.GetSize())
         self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("%d%%" % (scale*100))
-        self.__work_panel.Scale(scale)
+        self.__work_frame.Scale(scale)
         #显示绣线面板
         self.__floss_panel.ShowFlossIno(self.__cs[0].GetFlossSummary())
     
@@ -270,7 +295,7 @@ class MainFrame(wx.Frame):
         value += int(math.ceil(value * 0.5))            
         self.FindWindowById(ID_ToolBar_ZoomImage).SetValue('%d%%' % value)
         scale = float(value) / 100
-        self.__work_panel.Scale(scale)
+        self.__work_frame.Scale(scale)
     
     def OnImageZoomSpinDown(self, event):
         value = self.FindWindowById(ID_ToolBar_ZoomImage).GetValue()
@@ -283,7 +308,7 @@ class MainFrame(wx.Frame):
         if value > 10:
             self.FindWindowById(ID_ToolBar_ZoomImage).SetValue('%d%%' % value)
             scale = float(value) / 100
-            self.__work_panel.Scale(scale)
+            self.__work_frame.Scale(scale)
         
     def OnGeneratePreview(self, event):
         '''
@@ -305,7 +330,7 @@ class MainFrame(wx.Frame):
             value = 100
             event.GetEventObject().SetValue('100%')
         scale = value / 100
-        self.__work_panel.Scale(scale)
+        self.__work_frame.Scale(scale)
         
     def OnMenuClick(self, event):
         '''
@@ -356,19 +381,31 @@ class MainFrame(wx.Frame):
             Application_Settings["Default_Directory"] = Common.GetPathName(self.__cs[0].GetSourceImageFileName())
             #加载图像
             if self.__cs:
-                self.__work_panel.Clear()
+                self.__work_frame = WorkFrame(self, -1, u"图片工作区",size=(800, 600))
+                self.__work_frame.CenterOnParent()
                 self.FindWindowById(ID_ToolBar_ZoomImage).SetValue('100%')
                 self.__EnableImageTool(1)
-                self.__work_panel.ShowImage(self.__cs[0].GetSourceImage())
-                scale = Common.CaclImageBestScale(self.__cs[0].GetSourceImage(), self.__work_panel.GetSize())
+                self.__work_frame.ShowImage(self.__cs[0].GetSourceImage())
+                scale = Common.CaclImageBestScale(self.__cs[0].GetSourceImage(), self.__work_frame.GetSize())
                 self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("%d%%" % (scale*100))
-                self.__work_panel.Scale(scale)
+                self.__work_frame.Scale(scale)                
+                self.__work_frame.Show()
         dlg.Destroy()
+    
+    def OnWorkFrameMouseMove(self, event):
+        self.__status_bar.SetStatusText(u"光标位置:%d,%d  颜色:%s" % (event.pos[0], event.pos[1], event.rgb))
+        
+    def OnWorkFrameCloseEvent(self, event):
+        self.__EnableImageTool(0)
+        self.__log_panel.Clear()
+        self.__floss_panel.Clear()
     
     def __EnableImageTool(self, flg):
         '''
         控制图片相关工具的可用性
         '''
+        if not flg:
+            self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("100%")
         self.FindWindowById(ID_ToolBar_ZoomImage).Enable(flg)
         self.FindWindowById(ID_ToolBar_ZoomImageSpin).Enable(flg)
         self.FindWindowById(ID_ToolBar_GeneratePreview).Enable(flg)
@@ -387,6 +424,23 @@ class MainFrame(wx.Frame):
         Common.SaveToDisk(Application_Settings, Common.GetAppPath() + "/appsetting.dat")
         Common.SaveToDisk(self.__option_panel.GetProperties(), Common.GetAppPath() + "/options.dat")
         self.Destroy()
+    
+    def OnViewChange(self, event):
+        '''
+        切换视图
+        '''
+        self.__work_frame.Clear()
+        self.FindWindowById(ID_ToolBar_ZoomImage).SetValue('100%')
+        if event.GetId() == ID_MenuItem_ShowImageFormat1:
+            self.__work_frame.ShowImage(self.__cs[0].GetPreviewImage())
+        else:
+            self.__work_frame.ShowImage(self.__cs[0].GetStitchConvas())
+    
+    def OnDebug(self, event):
+#        print self.__cs[0].GetStitchConvas()
+#        self.__work_frame.ShowImage(self.__cs[0].GetStitchConvas())
+        print self.__work_frame
+        
         
     def __InitLayout(self):
         self.__mgr.GetPane("option_panel").Show()
@@ -403,67 +457,7 @@ class MainFrame(wx.Frame):
         self.__EnableImageTool(0)
         #设置图标        
         self.SetIcon(IMAGE_APP_ICON.GetIcon())
-    
-    class WorkPanel(wx.Panel):
-        '''
-        工作面板
-        '''
-        def __init__(self, parent):
-            wx.Panel.__init__(self, parent, ID_Panel_Work)
-            self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel)
-            self.Bind(wx.EVT_SIZE, self.OnResize)
-            self.Bind(wx.EVT_LEFT_DOWN, self.OnLeftDown)
-         
-        def OnLeftDown(self, event):
-            self.SetFocus()
-            
-        def OnMouseWheel(self, event):
-            if self.FindWindowById(ID_Panel_Work_ImageReview):
-                self.FindWindowById(ID_Panel_Work_ImageReview).GetEventHandler().ProcessEvent(event) 
         
-        def OnResize(self, event):
-            if self.FindWindowById(ID_Panel_Work_ImageReview):
-                self.FindWindowById(ID_Panel_Work_ImageReview).SetSize(self.GetSize())
-                self.SetFocus()
-        
-        def Clear(self):
-            self.__cs = None
-            self.__current_image = None
-            self.DestroyChildren()
-            
-        def ShowImage(self, image):
-            preview_panel = self.FindWindowById(ID_Panel_Work_ImageReview)
-            if preview_panel:
-                preview_panel.DestroyChildren()
-            else:                           
-                preview_panel = scrolled.ScrolledPanel(self, ID_Panel_Work_ImageReview, size=self.GetSize())
-            sizer = wx.GridSizer(1, 1)
-            sb = wx.StaticBitmap(preview_panel, -1, wx.BitmapFromImage(image), size=image.GetSize())
-            sizer.Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
-            preview_panel.SetSizer(sizer)
-            preview_panel.SetAutoLayout(1)
-            preview_panel.SetupScrolling()
-            sb.Bind(wx.EVT_LEFT_DOWN, self.OnLeftDown)
-            self.__current_image = image
-            self.SetFocus()
-            
-        def Scale(self, scale):
-            '''
-            图形缩放
-            '''
-            if self.__current_image:
-                #修改图片大小
-                image_panel = self.FindWindowById(ID_Panel_Work_ImageReview)
-                image_panel.DestroyChildren()
-                image = self.__current_image
-                image = image.Scale(int(image.GetSize()[0] * scale), int(image.GetSize()[1] * scale))
-                sb = wx.StaticBitmap(image_panel, -1, wx.BitmapFromImage(image), size=image.GetSize())
-                image_panel.GetSizer().Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
-                image_panel.SetAutoLayout(1)
-                image_panel.SetupScrolling()               
-            self.SetFocus()
-                
-            
     class OptionPanel(wx.Panel):
         '''
         选项面板
@@ -705,7 +699,12 @@ class MainFrame(wx.Frame):
 
         def OnResize(self, event):
             self.floss_table.SetSize(self.GetSize())
-            
+        
+        def Clear(self):
+            self.floss_table.ClearGrid()
+            if self.floss_table.GetNumberRows():
+                self.floss_table.DeleteRows(0, self.floss_table.GetNumberRows())
+        
         def ShowFlossIno(self, fs):
             self.floss_table.ClearGrid()
             if self.floss_table.GetNumberRows():
@@ -723,13 +722,76 @@ class MainFrame(wx.Frame):
                 self.floss_table.SetCellAlignment(i, 3, wx.ALIGN_RIGHT, wx.ALIGN_CENTRE)
                 
             self.floss_table.AutoSizeColumns()
+
+class WorkFrame(wx.Frame):
+    def __init__(self, parent, ID, title, pos=wx.DefaultPosition,
+            size=wx.DefaultSize, style=wx.DEFAULT_FRAME_STYLE
+            ):        
+        wx.Frame.__init__(self, parent, ID, title, pos, size, style=wx.DEFAULT_FRAME_STYLE|wx.STAY_ON_TOP)
+        self.Bind(wx.EVT_SET_FOCUS, self.OnSetFocus)
+    
+        #窗口关闭
+        self.Bind(wx.EVT_CLOSE, self.OnWindowClose)
         
+    def OnWindowClose(self, event):
+        wx.PostEvent(self.Parent, WorkFrameCloseEvent())
+        self.Destroy()
+         
+    def OnSetFocus(self, event):
+        if self.FindWindowById(ID_Frame_Work_ImageReview):
+            self.FindWindowById(ID_Frame_Work_ImageReview).SetFocus()
+            self.FindWindowById(ID_Frame_Work_ImageReview).Bind(wx.EVT_MOTION, self.OnMouseMove)
+    
+    def OnMouseMove(self, event):
+        rgb = None
+        image = self.FindWindowById(ID_Frame_Work_ImageReview)
+        x, y = event.GetX(), event.GetY()
+        if image:
+            image = image.GetBitmap().ConvertToImage()
+            rgb = Common.RGB2Hex((image.GetRed(x, y), image.GetGreen(x, y), image.GetBlue(x, y)))
+        wx.PostEvent(self.Parent, WorkFrameMouseMoveEvent(pos=(x, y), rgb=rgb))
+    
+    def Clear(self):
+        self.__cs = None
+        self.__current_image = None
+        self.DestroyChildren()
+            
+    def ShowImage(self, image):
+        preview_panel = self.FindWindowById(ID_Frame_Work_ImageReviewPanel)
+        if preview_panel:
+            preview_panel.DestroyChildren()
+        else:                           
+            preview_panel = scrolled.ScrolledPanel(self, ID_Frame_Work_ImageReviewPanel, size=self.GetSize())
+        sizer = wx.GridSizer(1, 1)
+        sb = wx.StaticBitmap(preview_panel, ID_Frame_Work_ImageReview, wx.BitmapFromImage(image), size=image.GetSize())
+        sizer.Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
+        preview_panel.SetSizer(sizer)
+        preview_panel.SetAutoLayout(1)
+        preview_panel.SetupScrolling()
+        self.__current_image = image
+        
+    def Scale(self, scale):
+        '''
+        图形缩放
+        '''
+        if self.__current_image:
+            #修改图片大小
+            image_panel = self.FindWindowById(ID_Frame_Work_ImageReviewPanel)
+            image_panel.DestroyChildren()
+            image = self.__current_image
+            image = image.Scale(int(image.GetSize()[0] * scale), int(image.GetSize()[1] * scale))
+            sb = wx.StaticBitmap(image_panel, ID_Frame_Work_ImageReview, wx.BitmapFromImage(image), size=image.GetSize())
+            image_panel.GetSizer().Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
+            image_panel.SetAutoLayout(1)
+            image_panel.SetupScrolling()
+            self.SetFocus()
+            
 class Application(wx.App):
     def OnInit(self):
         win = MainFrame(None, -1, u"十字绣转换工具 morphinewan荣誉出品", size=(1000, 600),
                   style = wx.DEFAULT_FRAME_STYLE)
         self.SetTopWindow(win)
-        win.Maximize(1)
+#        win.Maximize(1)
         win.CenterOnScreen(1)
         win.Show(True)
         return True
