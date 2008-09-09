@@ -86,6 +86,9 @@ def CaclImageBestSize(image, size):
         height = size[1]
     return (width, height)
 
-def CaclImageBestScale(image, size):
+def CaclImageBestScale(image, size):    
     new_size = CaclImageBestSize(image, size)
-    return float(new_size[0]) / image.GetSize()[0]
+    result = float(new_size[0]) / image.GetSize()[0]
+    if result > 1:
+        result = 1
+    return result
