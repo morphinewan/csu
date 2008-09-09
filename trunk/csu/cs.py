@@ -28,9 +28,6 @@ class MainFrame(wx.Frame):
         mb.Append(file_menu, u"文件")
         
         view_menu = wx.Menu()
-#        view_menu.Append(ID_MenuItem_ShowImageFormat1, u"显示效果图", u"显示效果图")
-#        view_menu.Append(ID_MenuItem_ShowImageFormat2, u"显示绣图", u"显示绣图")
-#        view_menu.Append(ID_MenuItem_ShowImageFormat3, u"显示绣图输出预览", u"显示绣图输出预览")
         
         sub_menu = wx.Menu()
         menu_item = sub_menu.AppendCheckItem(ID_MenuItem_ShowOptionPanel, u"选项面板", u"打开或者关闭选项面板")
@@ -61,10 +58,7 @@ class MainFrame(wx.Frame):
         toolbar.AddSeparator()
         toolbar.AddControl(wx.BitmapButton(toolbar, ID_ToolBar_ShowImageFormat1, bitmap=TOOLBAR_ICON_01.GetBitmap()))
         toolbar.AddControl(wx.BitmapButton(toolbar, ID_ToolBar_ShowImageFormat2, bitmap=TOOLBAR_ICON_02.GetBitmap()))
-#        toolbar.AddCheckLabelTool(ID_ToolBar_ShowImageFormat1, u"显示效果图", bitmap=TOOLBAR_ICON_01.GetBitmap(),
-#                                    shortHelp=u"显示效果图")
-#        toolbar.AddCheckLabelTool(ID_ToolBar_ShowImageFormat2, u"显示绣图", bitmap=TOOLBAR_ICON_02.GetBitmap(),
-#                                    shortHelp=u"显示绣图")
+        toolbar.AddControl(wx.BitmapButton(toolbar, ID_ToolBar_ShowImageFormat3, bitmap=TOOLBAR_ICON_03.GetBitmap()))
         toolbar.AddSeparator()
         
         toolbar.SetToolBitmapSize(wx.Size(16,16))
@@ -81,7 +75,7 @@ class MainFrame(wx.Frame):
         
         #添加自定义Button
         toolbar.AddControl(wx.Button(toolbar, ID_ToolBar_GeneratePreview, u"预览"))
-        
+        toolbar.AddControl(wx.Button(toolbar, ID_ToolBar_SAVE, u"保存"))
         toolbar.Realize()
         self.SetToolBar(toolbar)
         
@@ -104,9 +98,6 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnMenuClick, id=ID_MenuItem_ShowLogPanel)
         self.Bind(wx.EVT_MENU, self.OnMenuClick, id=ID_MenuItem_ShowFlossPanel)
         self.Bind(wx.EVT_MENU, self.OnDebug, id=ID_MenuItem_Debug)
-#        self.Bind(wx.EVT_MENU, self.OnViewChange, id=ID_MenuItem_ShowImageFormat1)
-#        self.Bind(wx.EVT_MENU, self.OnViewChange, id=ID_MenuItem_ShowImageFormat2)
-#        self.Bind(wx.EVT_MENU, self.OnViewChange, id=ID_MenuItem_ShowImageFormat3)
         
         self.Bind(wx.EVT_TOOL, self.OnFileOpen, id=ID_ToolBar_OpenFile)
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnMenuClick, id=ID_ToolBar_ShowOptionPanel)
@@ -115,6 +106,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_BUTTON , self.OnGeneratePreview, id=ID_ToolBar_GeneratePreview)
         self.Bind(wx.EVT_BUTTON, self.OnViewChange, id=ID_ToolBar_ShowImageFormat1)
         self.Bind(wx.EVT_BUTTON, self.OnViewChange, id=ID_ToolBar_ShowImageFormat2)
+        self.Bind(wx.EVT_BUTTON, self.OnViewChange, id=ID_ToolBar_ShowImageFormat3)
         
         self.Bind(wx.EVT_TEXT_ENTER, self.OnImageZoom, id=ID_ToolBar_ZoomImage)
         self.Bind(wx.EVT_COMBOBOX, self.OnImageZoom, id=ID_ToolBar_ZoomImage)
@@ -394,10 +386,10 @@ class MainFrame(wx.Frame):
         self.FindWindowById(ID_ToolBar_ZoomImage).Enable(flg)
         self.FindWindowById(ID_ToolBar_ZoomImageSpin).Enable(flg)
         self.FindWindowById(ID_ToolBar_GeneratePreview).Enable(flg)
+        self.FindWindowById(ID_ToolBar_SAVE).Enable(flg)
         self.FindWindowById(ID_ToolBar_ShowImageFormat1).Enable(flg)
         self.FindWindowById(ID_ToolBar_ShowImageFormat2).Enable(flg)
-#        self.GetToolBar().EnableTool(ID_ToolBar_ShowImageFormat1, flg)
-#        self.GetToolBar().EnableTool(ID_ToolBar_ShowImageFormat2, flg)
+        self.FindWindowById(ID_ToolBar_ShowImageFormat3).Enable(flg)
         
     def OnExit(self, event):
         '''
@@ -417,12 +409,12 @@ class MainFrame(wx.Frame):
     def OnViewChange(self, event):
         if event.GetId() == ID_ToolBar_ShowImageFormat1:
             self.__work_frame.ShowImage(self.__cs[0].GetPreviewImage())
-        else:
+        elif event.GetId() == ID_ToolBar_ShowImageFormat2:
             self.__work_frame.ShowImage(self.__cs[0].GetStitchConvas())
-    
+        elif event.GetId() == ID_ToolBar_ShowImageFormat3:
+            self.__work_frame.ShowImage(self.__cs[0].GetPrintConvas())
+            
     def OnDebug(self, event):
-#        print self.__cs[0].GetStitchConvas()
-#        self.__work_frame.ShowImage(self.__cs[0].GetStitchConvas())
         print self.__work_frame
         
         
@@ -712,7 +704,6 @@ class FlossFrame(wx.Frame):
             self.floss_table.SetCellAlignment(i, 0, wx.ALIGN_RIGHT, wx.ALIGN_CENTRE)
             self.floss_table.SetCellValue(i, 1, fs[i][0].description)
             self.floss_table.SetCellAlignment(i, 1, wx.ALIGN_LEFT, wx.ALIGN_CENTRE)
-#                print fs[i][0].rgb
             self.floss_table.SetCellValue(i, 2, "     ")
             self.floss_table.SetCellBackgroundColour(i, 2, fs[i][0].rgb)
             self.floss_table.SetCellValue(i, 3, str(fs[i][1]))
@@ -736,9 +727,6 @@ class WorkFrame(wx.Frame):
          
     def OnSetFocus(self, event):
         if self.FindWindowById(ID_Frame_Work_ImageReview):
-#            self.FindWindowById(ID_Frame_Work_ImageReviewPanel).EnableScrolling(0, 0)
-#            self.FindWindowById(ID_Frame_Work_ImageReview).SetFocus()
-#            self.FindWindowById(ID_Frame_Work_ImageReviewPanel).EnableScrolling(1, 1)
             self.FindWindowById(ID_Frame_Work_ImageReview).Bind(wx.EVT_MOTION, self.OnMouseMove)
     
     def OnMouseWheel(self, event):
@@ -818,8 +806,6 @@ class Application(wx.App):
         win = MainFrame(None, -1, u"十字绣转换工具 morphinewan荣誉出品",pos=(0, 0), size=size,
                   style = wx.MINIMIZE_BOX | wx.SYSTEM_MENU | wx.CAPTION | wx.CLOSE_BOX | wx.CLIP_CHILDREN | wx.STAY_ON_TOP)
         self.SetTopWindow(win)
-#        win.Maximize(1)
-#        win.CenterOnScreen(1)
         win.Show(True)
         return True
 

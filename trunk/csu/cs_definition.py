@@ -26,9 +26,11 @@ ID_ToolBar_OpenFile = wx.NewId()
 ID_ToolBar_ZoomImage = wx.NewId()
 ID_ToolBar_ZoomImageSpin = wx.NewId()
 ID_ToolBar_GeneratePreview = wx.NewId()
+ID_ToolBar_SAVE = wx.NewId()
 
 ID_ToolBar_ShowImageFormat1 = wx.NewId()
 ID_ToolBar_ShowImageFormat2 = wx.NewId()
+ID_ToolBar_ShowImageFormat3 = wx.NewId()
 #参数区
 ID_Panel_Option = wx.NewId()
 ID_Option_PrintScale = wx.NewId()
