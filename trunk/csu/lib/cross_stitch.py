@@ -104,6 +104,7 @@ class CrossStitch():
         self.__sourceimage = (filename, wx.Image(filename))
         #定义预览图
         self.__previewimage = None
+        self.__stitchconvas = None
         #颜色映射表
         self.__flossmap = flossmap
         #定义事件发送对象
