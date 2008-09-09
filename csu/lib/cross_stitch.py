@@ -105,6 +105,7 @@ class CrossStitch():
         #定义预览图
         self.__previewimage = None
         self.__stitchconvas = None
+        self.__printconvas = None
         #颜色映射表
         self.__flossmap = flossmap
         #定义事件发送对象
@@ -158,6 +159,9 @@ class CrossStitch():
         '''
         return self.__stitchconvas
     
+    def GetPrintConvas(self):
+        return self.__printconvas
+    
     def GeneratePreviewImage(self, dic_args):
         '''
         #生成预览图片
@@ -168,7 +172,9 @@ class CrossStitch():
         self.__BackgroundColor = self.__GetMinDistanceColor(rgb[0], rgb[1], rgb[2])
         #生成图片
         self.__previewimage = self.__GeneratePreviewImage(dic_args)
-        self.__stitchconvas = self.__GetStitchConvas(self.__previewimage, dic_args)        
+        self.__stitchconvas = self.__GetStitchConvas(self.__previewimage, dic_args)
+        floss_mask_list = self.__GetFlossMaskList(self.__GetFlossSummary(self.GetPreviewImage()))
+        self.__printconvas = self.__GetStitchConvas(self.__previewimage, dic_args, floss_mask_list)      
         wx.PostEvent(self.__sender, PIGenerateEndEvent())
         
     def GetFlossSummary(self):
@@ -534,7 +540,7 @@ class CrossStitch():
                                           source_im.GetRed(i, j), source_im.GetGreen(i, j), source_im.GetBlue(i, j))
                     else:
                         mask = mask_dic[(source_im.GetRed(i, j), source_im.GetGreen(i, j), source_im.GetBlue(i, j))]
-                        im.SetRGBRect(wx.Rect(x, y, x + self.__StitchSize, y + self.__StitchSize), mask[0], mask[1], mask[2])
+                        self.__MergeImage(im, mask, x, y)
                 else:
                     #否则则是在输出预览图
                     im.SetRGBRect(wx.Rect(x, y, self.__StitchSize, self.__StitchSize), \
@@ -558,6 +564,45 @@ class CrossStitch():
                 #否则加上细线条
                 y = y + self.__BoldGridLineWidth
         return im
+    
+    def __GetFlossMaskList(self, summary):
+        '''
+        根据用线统计列表，得到用线对应的符号列表
+        '''
+        result = {}
+        for k in range(len(summary)):
+            result[summary[k][0]] = self.__GetSymbolMask(summary[k][0], unichr(self.__Symbols[k]))
+        return result
+    
+    def __GetSymbolMask(self, rgb, symbol):
+        '''
+            加注水印
+        '''
+        im = wx.EmptyBitmap(self.__StitchSize, self.__StitchSize)
+        dc = wx.MemoryDC()
+        dc.SelectObject(im)
+        dc.SetBrush(wx.Brush(rgb))
+        dc.DrawRectangle(0, 0, self.__StitchSize, self.__StitchSize)
+#        dc.SetBackground(wx.Brush(rgb))
+        print dc.GetPixel(0,0)
+#        dc.SetBackgroundMode(wx.SOLID)
+#        dc.SetFont(wx.Font(20,wx.FONTFAMILY_DEFAULT, wx.NORMAL, wx.FONTWEIGHT_NORMAL, wx.FONTENCODING_CP932))
+#        textsize = dc.GetTextExtent(symbol)
+#        position = ((self.__StitchSize - textsize[0]) // 2, (self.__StitchSize - textsize[1]) // 2)
+#        #如果颜色过于接近黑色，则用反色白色来填充
+#        if Common.GetRGBDistance(rgb, (0,0,0)) < 200:
+#            dc.SetTextForeground((255, 255, 255))
+#        else:
+#            dc.SetTextForeground((0, 0, 0))
+#        dc.DrawText(symbol, position[0], position[1])
+        return im
+    
+    def __MergeImage(self, container, inserter, x, y):
+        dc = wx.MemoryDC()
+        result = wx.BitmapFromImage(container)
+        dc.SelectObject(result)
+        dc.DrawBitmap(inserter, x, y)
+        return result.ConvertToImage()
         
 def LoadColorTable():
     '''
