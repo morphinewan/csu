@@ -147,6 +147,8 @@ class MainFrame(wx.Frame):
         
         self.Bind(EVT_WORK_FRAME_MOUSE_MOVE_EVENT, self.OnWorkFrameMouseMove)
         self.Bind(EVT_WORK_FRAME_CLOSE_EVENT, self.OnWorkFrameCloseEvent)
+        
+        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
         #定义待处理的图片数组
         self.__cs = []
         
@@ -242,12 +244,11 @@ class MainFrame(wx.Frame):
     def OnPreviewImageGenerateEnd(self, event):
         self.__EnableImageTool(1)
         self.__log_panel.Log((u"预览图转换完成"))
-        self.__work_frame.ShowImage(self.__cs[0].GetPreviewImage())
-        scale = Common.CaclImageBestScale(self.__cs[0].GetPreviewImage(), self.__work_frame.GetSize())
+        scale = self.__work_frame.ShowImage(self.__cs[0].GetPreviewImage(), 1)
         self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("%d%%" % (scale*100))
-        self.__work_frame.Scale(scale)
         #显示绣线面板
-        self.__floss_panel.ShowFlossIno(self.__cs[0].GetFlossSummary())
+        fs =self.__cs[0].GetFlossSummary(self.__cs[0].GetPreviewImage())
+        self.__floss_panel.ShowFlossIno(fs, self.__cs[0].GetFlossMaskList(fs))
         self.__work_frame.Show()
     
     def OnPreviewImageGenerateStart(self, event):
@@ -362,10 +363,8 @@ class MainFrame(wx.Frame):
                 self.__work_frame = WorkFrame(self, -1, u"图片工作区",pos=pos, size=(wx.DisplaySize()[0] - 200, wx.DisplaySize()[1]-150))
                 self.FindWindowById(ID_ToolBar_ZoomImage).SetValue('100%')
                 self.__EnableImageTool(1)
-                self.__work_frame.ShowImage(self.__cs[0].GetSourceImage())
-                scale = Common.CaclImageBestScale(self.__cs[0].GetSourceImage(), self.__work_frame.GetSize())
+                scale = self.__work_frame.ShowImage(self.__cs[0].GetSourceImage(), 1)                
                 self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("%d%%" % (scale*100))
-                self.__work_frame.Scale(scale)                
                 self.__work_frame.Show()
         dlg.Destroy()
     
@@ -407,16 +406,59 @@ class MainFrame(wx.Frame):
         self.Destroy()
     
     def OnViewChange(self, event):
+        scale = None
         if event.GetId() == ID_ToolBar_ShowImageFormat1:
-            self.__work_frame.ShowImage(self.__cs[0].GetPreviewImage())
+            scale = self.__work_frame.ShowImage(self.__cs[0].GetPreviewImage(), 1)
         elif event.GetId() == ID_ToolBar_ShowImageFormat2:
-            self.__work_frame.ShowImage(self.__cs[0].GetStitchConvas())
+            scale = self.__work_frame.ShowImage(self.__cs[0].GetStitchConvas(), 1)
         elif event.GetId() == ID_ToolBar_ShowImageFormat3:
-            self.__work_frame.ShowImage(self.__cs[0].GetPrintConvas())
+            scale = self.__work_frame.ShowImage(self.__cs[0].GetPrintConvas(), 1)
+        if scale:
+            self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("%d%%" % (scale*100))
+    
+    def OnKeyDown(self, event):
+#        print event.GetKeyCode()
+        if event.GetModifiers() == wx.MOD_CONTROL and event.GetKeyCode() in (65, 79):
+            #打开文件 ctrl + a  or ctrl + o
+            self.OnFileOpen(None)
+        elif event.GetModifiers() == wx.MOD_CONTROL and event.GetKeyCode() in (81, 90):
+            #退出系统 ctrl + q or ctrl + z
+            self.OnExit(None)
+        elif event.GetKeyCode() == wx.WXK_F1:
+            item = self.GetMenuBar().GetMenus()[1][0].FindItemById(ID_MenuItem_ShowOptionPanel)           
+            item.Check(not item.IsChecked())
+            self.FindWindowById(ID_ToolBar_ShowOptionPanel).SetValue(item.IsChecked())
+            self.__option_panel.Show(show=item.IsChecked())
+        elif event.GetKeyCode() == wx.WXK_F2:
+            item = self.GetMenuBar().GetMenus()[1][0].FindItemById(ID_MenuItem_ShowLogPanel)           
+            item.Check(not item.IsChecked())
+            self.FindWindowById(ID_ToolBar_ShowLogPanel).SetValue(item.IsChecked())
+            self.__log_panel.Show(show=item.IsChecked())
+        elif event.GetKeyCode() == wx.WXK_F3:
+            item = self.GetMenuBar().GetMenus()[1][0].FindItemById(ID_MenuItem_ShowFlossPanel)           
+            item.Check(not item.IsChecked())
+            self.FindWindowById(ID_ToolBar_ShowFlossPanel).SetValue(item.IsChecked())
+            self.__floss_panel.Show(show=item.IsChecked())
+        if self.__cs:
+            scale = None
+            if event.GetKeyCode() == wx.WXK_F5:
+                scale = self.__work_frame.ShowImage(self.__cs[0].GetPreviewImage(), 1)
+            elif event.GetKeyCode() == wx.WXK_F6:
+                scale = self.__work_frame.ShowImage(self.__cs[0].GetStitchConvas(), 1)
+            elif event.GetKeyCode() == wx.WXK_F7:
+                scale = self.__work_frame.ShowImage(self.__cs[0].GetPrintConvas(), 1)
+            if scale:
+                self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("%d%%" % (scale*100))
+            if event.GetKeyCode() == wx.WXK_F9:
+                #预览
+                self.OnGeneratePreview(None)
+            elif event.GetKeyCode() == wx.WXK_F10:
+                #保存功能
+                pass
             
+    
     def OnDebug(self, event):
-        print self.__work_frame
-        
+        DebugFrame(self).Show()
         
     def __InitLayout(self):
         self.__option_panel.Hide()
@@ -562,6 +604,10 @@ class OptionFrame(wx.Frame):
         self.SetSizer(sizer)
         
         self.FindWindowById(ID_Option_BgColour).Bind(wx.EVT_LEFT_DCLICK, self.OnColourPickup)
+        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+        
+    def OnKeyDown(self, event):
+        self.Parent.ProcessEvent(event)
         
     def OnColourPickup(self, event):
         '''
@@ -643,6 +689,10 @@ class LogFrame(wx.Frame):
         self.SetSizer(bsizer)
         self.SetAutoLayout(True)
         self.Bind(wx.EVT_SIZE, self.OnResize)
+        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+        
+    def OnKeyDown(self, event):
+        self.Parent.ProcessEvent(event)
         
     def OnResize(self, event):
         self.log.SetSize(self.GetSize())
@@ -663,10 +713,12 @@ class LogFrame(wx.Frame):
     
 class FlossFrame(wx.Frame):
     def __init__(self, parent, ID, title, pos=wx.DefaultPosition,
-            size=(300, 600), style=wx.RESIZE_BORDER | wx.MINIMIZE_BOX | wx.FRAME_TOOL_WINDOW | wx.CAPTION | wx.CLIP_CHILDREN | wx.STAY_ON_TOP
+            size=(300, 600), style=wx.MINIMIZE_BOX | wx.FRAME_TOOL_WINDOW | wx.CAPTION | wx.CLIP_CHILDREN | wx.STAY_ON_TOP
             ):
         position = (wx.DisplaySize()[0] - 320, 100)
         wx.Frame.__init__(self, parent, ID, title, pos=position, size=size, style=style)
+        panel = scrolled.ScrolledPanel(self, -1, size=self.GetSize())
+        
         self.floss_table = wx.grid.Grid(self, -1, size=self.GetSize())
         self.floss_table.CreateGrid(0, 4, wx.grid.Grid.wxGridSelectRows)
         self.floss_table.EnableGridLines(1)
@@ -676,14 +728,29 @@ class FlossFrame(wx.Frame):
         self.floss_table.SetColLabelValue(1, u"说明")
         self.floss_table.SetColLabelValue(2, u"颜色")
         self.floss_table.SetColLabelValue(3, u"格子数")
-        
         bsizer = wx.BoxSizer(wx.VERTICAL)
         bsizer.Add(self.floss_table, 0, wx.GROW|wx.ALL)
-        self.SetSizer(bsizer)
-        self.SetAutoLayout(True)
-    
+        panel.SetSizer(bsizer)
+        panel.SetAutoLayout(1)
+        panel.SetupScrolling()
+        
+        self.floss_table.EnableEditing(0)
+        self.floss_table.EnableDragCell(0)
+        self.floss_table.EnableDragColSize(0)
+        self.floss_table.EnableDragColMove(0)
+        self.floss_table.EnableDragRowSize(0)
+        
         #窗口关闭
         self.Bind(wx.EVT_CLOSE, self.OnWindowClose)
+#        self.Bind(wx.EVT_SIZE, self.OnResize)
+        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+        
+    def OnKeyDown(self, event):
+        self.Parent.ProcessEvent(event)
+        
+#    def OnResize(self, event):
+#        self.floss_table.SetSize(self.GetSize())
+#        self.Refresh()
         
     def OnWindowClose(self, event):
         wx.PostEvent(self.Parent, WorkFrameCloseEvent())
@@ -694,22 +761,39 @@ class FlossFrame(wx.Frame):
         if self.floss_table.GetNumberRows():
             self.floss_table.DeleteRows(0, self.floss_table.GetNumberRows())
     
-    def ShowFlossIno(self, fs):
+    def ShowFlossIno(self, fs, masklist):
         self.floss_table.ClearGrid()
         if self.floss_table.GetNumberRows():
             self.floss_table.DeleteRows(0, self.floss_table.GetNumberRows())
-        self.floss_table.AppendRows(len(fs))            
-        for i in range(len(fs)):
-            self.floss_table.SetCellValue(i, 0, fs[i][0].id)
+        self.floss_table.AppendRows(len(fs))
+        i = 0        
+        for floss in fs:
+            f = cs.COLOR_TABLE[floss[0]]
+            self.floss_table.SetCellValue(i, 0, f.id)
             self.floss_table.SetCellAlignment(i, 0, wx.ALIGN_RIGHT, wx.ALIGN_CENTRE)
-            self.floss_table.SetCellValue(i, 1, fs[i][0].description)
+            self.floss_table.SetCellValue(i, 1, f.description)
             self.floss_table.SetCellAlignment(i, 1, wx.ALIGN_LEFT, wx.ALIGN_CENTRE)
-            self.floss_table.SetCellValue(i, 2, "     ")
-            self.floss_table.SetCellBackgroundColour(i, 2, fs[i][0].rgb)
-            self.floss_table.SetCellValue(i, 3, str(fs[i][1]))
+            mask = masklist[(f.rgb[0], f.rgb[1], f.rgb[2],)]
+#            self.floss_table.SetCellRenderer(i, 2, self.GridCellMaskRenderer(mask))
+            self.floss_table.SetCellBackgroundColour(i, 2, f.rgb)
+            self.floss_table.SetCellAlignment(i, 2, wx.ALIGN_CENTRE, wx.ALIGN_CENTRE)
+            self.floss_table.SetCellValue(i, 3, str(floss[1]))
             self.floss_table.SetCellAlignment(i, 3, wx.ALIGN_RIGHT, wx.ALIGN_CENTRE)
-            
-        self.floss_table.AutoSizeColumns()
+            i += 1
+        self.floss_table.AutoSize()
+        
+    class GridCellMaskRenderer(wx.grid.PyGridCellRenderer):
+        def __init__(self, mask):
+            wx.grid.PyGridCellRenderer.__init__(self)
+            self.mask = mask
+        
+        def Draw(self, grid, attr, dc, rect, row, col, isSelected):
+            dc_temp = wx.MemoryDC(wx.BitmapFromImage(self.mask))
+            dc.SetBrush(wx.Brush((255, 255, 255)))
+            dc.DrawRectangle(rect.x, rect.y, rect.GetWidth(), rect.GetHeight())
+            x = rect.x + (rect.GetWidth() - self.mask.GetSize()[0]) / 2
+            y = rect.y + (rect.GetHeight() - self.mask.GetSize()[1]) / 2
+            dc.Blit(x, y, self.mask.GetSize()[0], self.mask.GetSize()[1], dc_temp, 0, 0)
 
 class WorkFrame(wx.Frame):
     def __init__(self, parent, ID, title, pos=wx.DefaultPosition,
@@ -720,8 +804,23 @@ class WorkFrame(wx.Frame):
         self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel)
         #窗口关闭
         self.Bind(wx.EVT_CLOSE, self.OnWindowClose)
+        #变大的时候，自动隐藏主窗口
+        self.Bind(wx.EVT_SIZE, self.OnResize)
+        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+        
+    def OnKeyDown(self, event):
+        self.Parent.ProcessEvent(event)
+        
+    def OnResize(self, event):
+        if self.IsMaximized():
+            self.Parent.Hide()
+        else:
+            self.Parent.Show()
+        event.Skip()
         
     def OnWindowClose(self, event):
+        if not self.Parent.IsShown():
+            self.Parent.Show()
         wx.PostEvent(self.Parent, WorkFrameCloseEvent())
         self.Destroy()
          
@@ -759,7 +858,7 @@ class WorkFrame(wx.Frame):
         self.__current_image = None
         self.DestroyChildren()
             
-    def ShowImage(self, image):
+    def ShowImage(self, image, fill=False):
         if image:
             preview_panel = self.FindWindowById(ID_Frame_Work_ImageReviewPanel)
             if preview_panel:
@@ -767,12 +866,35 @@ class WorkFrame(wx.Frame):
             else:                           
                 preview_panel = scrolled.ScrolledPanel(self, ID_Frame_Work_ImageReviewPanel, size=self.GetSize())
             sizer = wx.GridSizer(1, 1)
+            self.__current_image = image
+            scale = 1.0
+            if fill:
+                if (float(image.GetSize()[0]) / image.GetSize()[1]) > \
+                    (float(self.GetSize()[0]) / self.GetSize()[1]):
+                    scale = float(self.GetSize()[0]) / image.GetSize()[0]
+                else:
+                    scale = float(self.GetSize()[1]) / image.GetSize()[1]      
+                image = image.Scale(int(image.GetSize()[0] * scale), int(image.GetSize()[1] * scale))
             sb = wx.StaticBitmap(preview_panel, ID_Frame_Work_ImageReview, wx.BitmapFromImage(image), size=image.GetSize())
             sizer.Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
             preview_panel.SetSizer(sizer)
             preview_panel.SetAutoLayout(1)
             preview_panel.SetupScrolling()
-            self.__current_image = image
+            return scale
+            
+    def FitBestSize(self):
+        if self.__current_image:
+            image = self.__current_image 
+            #自适应图片大小
+            if wx.DisplaySize()[0] - 200 > image.GetSize()[0]:
+                width = image.GetSize()[0] + 50
+            else:
+                width = wx.DisplaySize()[0] - 200
+            if wx.DisplaySize()[1]-150 > image.GetSize()[1]:
+                height = image.GetSize()[1] + 50
+            else:
+                height = wx.DisplaySize()[1]-150
+            self.SetSize((width, height))
         
     def Scale(self, scale):
         '''
@@ -786,16 +908,6 @@ class WorkFrame(wx.Frame):
             image = image.Scale(int(image.GetSize()[0] * scale), int(image.GetSize()[1] * scale))
             sb = wx.StaticBitmap(image_panel, ID_Frame_Work_ImageReview, wx.BitmapFromImage(image), size=image.GetSize())
             image_panel.GetSizer().Add(sb, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
-            #自适应图片大小
-            if wx.DisplaySize()[0] - 200 > image.GetSize()[0]:
-                width = image.GetSize()[0] + 50
-            else:
-                width = wx.DisplaySize()[0] - 200
-            if wx.DisplaySize()[1]-150 > image.GetSize()[1]:
-                height = image.GetSize()[1] + 50
-            else:
-                height = wx.DisplaySize()[1]-150
-            self.SetSize((width, height))
             image_panel.SetAutoLayout(1)
             image_panel.SetupScrolling()
             self.SetFocus()
@@ -808,6 +920,29 @@ class Application(wx.App):
         self.SetTopWindow(win)
         win.Show(True)
         return True
+
+class DebugFrame(wx.Frame):
+    def __init__(self, parent):
+        wx.Frame.__init__(self, parent, -1, "debug form",pos=(200,300),size=(800, 600))
+        self.panel = wx.Panel(self, -1, size=self.GetSize())
+        
+        bsizer = wx.BoxSizer(wx.VERTICAL)
+        bsizer.Add(self.panel, 0, wx.GROW|wx.ALL)
+        self.SetSizer(bsizer)
+        self.SetAutoLayout(True)
+        
+        self.panel.Bind(wx.EVT_PAINT, self.OnPaint)
+
+
+    def OnPaint(self, evt):        
+        dc = wx.PaintDC(self.panel)
+        dc.SetBackground(wx.Brush("WHITE"))
+#        dc.Clear()
+        
+        dc.SetFont(wx.Font(16, wx.SWISS, wx.NORMAL, wx.BOLD, True))
+        dc.DrawText("Bitmap alpha blending (on all ports but gtk+ 1.2)",
+                    25,25)
+    
 
 def main():
     Application(0).MainLoop()
