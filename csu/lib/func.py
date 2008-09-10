@@ -74,21 +74,21 @@ def LoadFromDisk(filename):
 def GetRGBDistance(rgb1, rgb2):
     return math.sqrt((rgb1[0] - rgb2[0])**2 + (rgb1[1] - rgb2[1])**2 + (rgb1[2] - rgb2[2])**2)
 
-def CaclImageBestSize(image, size):
-    image_size = image.GetSize()
-    width, height = 0, 0
-    if (float(image_size[0]) / image_size[1]) > (float(size[0]) / size[1]):
-        #如果图片本身的长宽比大于目标大小的长宽比，说明图片的宽度可以用来放大
-        width = size[0]
-        height = int(float(size[0]) *  image_size[1] / image_size[0])
-    else:
-        width = int(float(size[0]) *  image_size[0] / image_size[1])
-        height = size[1]
-    return (width, height)
-
-def CaclImageBestScale(image, size):    
-    new_size = CaclImageBestSize(image, size)
-    result = float(new_size[0]) / image.GetSize()[0]
-    if result > 1:
-        result = 1
-    return result
+#def CaclImageBestSize(image, size):
+#    image_size = image.GetSize()
+#    width, height = 0, 0
+#    if (float(image_size[0]) / image_size[1]) > (float(size[0]) / size[1]):
+#        #如果图片本身的长宽比大于目标大小的长宽比，说明图片的宽度可以用来放大
+#        width = size[0]
+#        height = int(float(size[0]) *  image_size[1] / image_size[0])
+#    else:
+#        width = int(float(size[0]) *  image_size[0] / image_size[1])
+#        height = size[1]
+#    return (width, height)
+#
+#def CaclImageBestScale(image, size):    
+#    new_size = CaclImageBestSize(image, size)
+#    result = float(new_size[0]) / image.GetSize()[0]
+#    if result > 1:
+#        result = 1
+#    return result
