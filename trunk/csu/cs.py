@@ -717,8 +717,6 @@ class FlossFrame(wx.Frame):
             ):
         position = (wx.DisplaySize()[0] - 320, 100)
         wx.Frame.__init__(self, parent, ID, title, pos=position, size=size, style=style)
-        panel = scrolled.ScrolledPanel(self, -1, size=self.GetSize())
-        
         self.floss_table = wx.grid.Grid(self, -1, size=self.GetSize())
         self.floss_table.CreateGrid(0, 4, wx.grid.Grid.wxGridSelectRows)
         self.floss_table.EnableGridLines(1)
@@ -728,11 +726,10 @@ class FlossFrame(wx.Frame):
         self.floss_table.SetColLabelValue(1, u"说明")
         self.floss_table.SetColLabelValue(2, u"颜色")
         self.floss_table.SetColLabelValue(3, u"格子数")
-        bsizer = wx.BoxSizer(wx.VERTICAL)
-        bsizer.Add(self.floss_table, 0, wx.GROW|wx.ALL)
-        panel.SetSizer(bsizer)
-        panel.SetAutoLayout(1)
-        panel.SetupScrolling()
+        sizer = wx.GridSizer(1, 1)
+        sizer.Add(self.floss_table, flag=wx.ALIGN_CENTER | wx.ALIGN_CENTER_HORIZONTAL | wx.ALIGN_CENTER_VERTICAL)
+        self.SetSizer(sizer)
+        self.SetAutoLayout(1)
         
         self.floss_table.EnableEditing(0)
         self.floss_table.EnableDragCell(0)
@@ -742,15 +739,10 @@ class FlossFrame(wx.Frame):
         
         #窗口关闭
         self.Bind(wx.EVT_CLOSE, self.OnWindowClose)
-#        self.Bind(wx.EVT_SIZE, self.OnResize)
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
         
     def OnKeyDown(self, event):
         self.Parent.ProcessEvent(event)
-        
-#    def OnResize(self, event):
-#        self.floss_table.SetSize(self.GetSize())
-#        self.Refresh()
         
     def OnWindowClose(self, event):
         wx.PostEvent(self.Parent, WorkFrameCloseEvent())
@@ -774,7 +766,7 @@ class FlossFrame(wx.Frame):
             self.floss_table.SetCellValue(i, 1, f.description)
             self.floss_table.SetCellAlignment(i, 1, wx.ALIGN_LEFT, wx.ALIGN_CENTRE)
             mask = masklist[(f.rgb[0], f.rgb[1], f.rgb[2],)]
-#            self.floss_table.SetCellRenderer(i, 2, self.GridCellMaskRenderer(mask))
+            self.floss_table.SetCellRenderer(i, 2, self.GridCellMaskRenderer(mask))
             self.floss_table.SetCellBackgroundColour(i, 2, f.rgb)
             self.floss_table.SetCellAlignment(i, 2, wx.ALIGN_CENTRE, wx.ALIGN_CENTRE)
             self.floss_table.SetCellValue(i, 3, str(floss[1]))
