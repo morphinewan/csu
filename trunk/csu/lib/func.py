@@ -74,21 +74,30 @@ def LoadFromDisk(filename):
 def GetRGBDistance(rgb1, rgb2):
     return math.sqrt((rgb1[0] - rgb2[0])**2 + (rgb1[1] - rgb2[1])**2 + (rgb1[2] - rgb2[2])**2)
 
-#def CaclImageBestSize(image, size):
-#    image_size = image.GetSize()
-#    width, height = 0, 0
-#    if (float(image_size[0]) / image_size[1]) > (float(size[0]) / size[1]):
-#        #如果图片本身的长宽比大于目标大小的长宽比，说明图片的宽度可以用来放大
-#        width = size[0]
-#        height = int(float(size[0]) *  image_size[1] / image_size[0])
-#    else:
-#        width = int(float(size[0]) *  image_size[0] / image_size[1])
-#        height = size[1]
-#    return (width, height)
-#
-#def CaclImageBestScale(image, size):    
-#    new_size = CaclImageBestSize(image, size)
-#    result = float(new_size[0]) / image.GetSize()[0]
-#    if result > 1:
-#        result = 1
-#    return result
+def ShowError(parent, message):
+        dlg = wx.MessageDialog(parent, message, u"错误", style= wx.OK | wx.ICON_ERROR)
+        dlg.ShowModal()
+        dlg.Destroy()
+    
+def ShowInfo(parent, message):
+    dlg = wx.MessageDialog(parent, message, u"信息", style= wx.OK | wx.ICON_INFORMATION)
+    dlg.ShowModal()
+    dlg.Destroy()
+    
+def ShowAlert(parent, message):
+    dlg = wx.MessageDialog(parent, message, u"警告", style= wx.OK | wx.ICON_EXCLAMATION)
+    dlg.ShowModal()
+    dlg.Destroy()
+    
+def GetOutputFileName(path, outputPath, suffix = None):
+    '''
+    从目标文件名得到存储路径中的文件名
+    '''
+    fileName = os.path.split(path)[1]
+    extensionName =  os.path.splitext(path)[1]
+    fileName = fileName[:len(fileName) - len(extensionName)]
+    if suffix:
+        result = "%s\\%s(%s).jpg" %(outputPath, fileName, suffix)
+    else:
+        result = "%s\\%s.jpg" %(outputPath, fileName)
+    return result

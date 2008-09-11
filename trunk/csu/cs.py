@@ -75,7 +75,7 @@ class MainFrame(wx.Frame):
         
         #添加自定义Button
         toolbar.AddControl(wx.Button(toolbar, ID_ToolBar_GeneratePreview, u"预览"))
-        toolbar.AddControl(wx.Button(toolbar, ID_ToolBar_SAVE, u"保存"))
+        toolbar.AddControl(wx.Button(toolbar, ID_ToolBar_Save, u"保存"))
         toolbar.Realize()
         self.SetToolBar(toolbar)
         
@@ -104,6 +104,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnMenuClick, id=ID_ToolBar_ShowLogPanel)
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnMenuClick, id=ID_ToolBar_ShowFlossPanel)
         self.Bind(wx.EVT_BUTTON , self.OnGeneratePreview, id=ID_ToolBar_GeneratePreview)
+        self.Bind(wx.EVT_BUTTON , self.OnSave, id=ID_ToolBar_Save)
         self.Bind(wx.EVT_BUTTON, self.OnViewChange, id=ID_ToolBar_ShowImageFormat1)
         self.Bind(wx.EVT_BUTTON, self.OnViewChange, id=ID_ToolBar_ShowImageFormat2)
         self.Bind(wx.EVT_BUTTON, self.OnViewChange, id=ID_ToolBar_ShowImageFormat3)
@@ -144,6 +145,18 @@ class MainFrame(wx.Frame):
         self.Bind(cs.EVT_PI_ANTIBGCOLOUR_START, self.OnCSProcessStartEvent)
         self.Bind(cs.EVT_ANTIBGCOLOURING, self.OnCSProcessingEvent)
         self.Bind(cs.EVT_PI_ANTIBGCOLOUR_END, self.OnCSProcessEndEvent)
+        
+        self.Bind(cs.EVT_PI_STITCHCONVASGENERATE_START, self.OnCSProcessStartEvent)
+        self.Bind(cs.EVT_STITCHCONVASGENERATING, self.OnCSProcessingEvent)
+        self.Bind(cs.EVT_PI_STITCHCONVASGENERATE_END, self.OnCSProcessEndEvent)
+        
+        self.Bind(cs.EVT_PI_PRINTCONVASGENERATE_START, self.OnCSProcessStartEvent)
+        self.Bind(cs.EVT_PRINTCONVASGENERATING, self.OnCSProcessingEvent)
+        self.Bind(cs.EVT_PI_PRINTCONVASGENERATE_END, self.OnCSProcessEndEvent)
+        
+        self.Bind(cs.EVT_PI_CROSSSTITCHSAVE_START, self.OnCSProcessStartEvent)
+        self.Bind(cs.EVT_CROSSSTITCHSAVING, self.OnCSProcessingEvent)
+        self.Bind(cs.EVT_PI_CROSSSTITCHSAVE_END, self.OnCSProcessEndEvent)
         
         self.Bind(EVT_WORK_FRAME_MOUSE_MOVE_EVENT, self.OnWorkFrameMouseMove)
         self.Bind(EVT_WORK_FRAME_CLOSE_EVENT, self.OnWorkFrameCloseEvent)
@@ -194,6 +207,15 @@ class MainFrame(wx.Frame):
         elif event_type == cs.EVT_PI_ANTIBGCOLOUR_START.typeId:
             log_content = u"去除接近背景色的像素开始"
             title = u"去除接近背景色的像素"
+        elif event_type == cs.EVT_PI_STITCHCONVASGENERATE_START.typeId:
+            log_content = u"生成绣图预览模式1开始"
+            title = u"生成绣图预览模式1"
+        elif event_type == cs.EVT_PI_PRINTCONVASGENERATE_START.typeId:
+            log_content = u"生成绣图预览模式2开始"
+            title = u"生成绣图预览模式2"
+        elif event_type == cs.EVT_PI_CROSSSTITCHSAVE_START.typeId:
+            log_content = u"保存绣图开始"
+            title = u"保存绣图"
         self.__log_panel.Log(log_content)
         self.__prodlg = wx.ProgressDialog(u"进度条",
                            title,
@@ -212,7 +234,11 @@ class MainFrame(wx.Frame):
                           cs.EVT_PI_MAX_COLOUR_NUM_REDUCING.typeId,
                           cs.EVT_PI_MIN_FLOSS_NUM_REDUCING.typeId,
                           cs.EVT_PI_ANTINOISING.typeId,
-                          cs.EVT_ANTIBGCOLOURING.typeId):
+                          cs.EVT_ANTIBGCOLOURING.typeId,
+                          cs.EVT_STITCHCONVASGENERATING.typeId,
+                          cs.EVT_PRINTCONVASGENERATING.typeId,
+                          cs.EVT_CROSSSTITCHSAVING.typeId,
+                          ):
             self.__prodlg.Update(event.count * 100 / event.total)
         elif event_type == cs.EVT_PI_COLOURTABLE_CHANGING.typeId:
             self.__prodlg.Update(event.pos * 100 / (event.max - event.min))
@@ -234,6 +260,13 @@ class MainFrame(wx.Frame):
             log_content =  u"去除图片中的噪点结束"
         elif event_type == cs.EVT_PI_ANTIBGCOLOUR_END.typeId:    
             log_content =  u"去除接近背景色的像素结束"
+        elif event_type == cs.EVT_PI_STITCHCONVASGENERATE_END.typeId:    
+            log_content =  u"生成绣图预览模式1结束"
+        elif event_type == cs.EVT_PI_PRINTCONVASGENERATE_END.typeId:    
+            log_content =  u"生成绣图预览模式2结束"
+        elif event_type == cs.EVT_PI_CROSSSTITCHSAVE_END.typeId:    
+            log_content =  u"保存绣图结束"
+            Common.ShowInfo(self, log_content)
         self.__log_panel.Log(log_content)
         if self.__prodlg:
             self.__prodlg.Destroy()
@@ -291,7 +324,25 @@ class MainFrame(wx.Frame):
         if self.__option_panel.ValidateData():
             self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("100%")
             threading.Thread(target=self.__cs[0].GeneratePreviewImage, args=(self.__option_panel.GetProperties(),)).start()
-        
+    
+    def OnSave(self, event):
+        '''
+        保存导出文件
+        '''
+        if not self.__cs[0].CanSave():
+            Common.ShowAlert(self, u"您必须先执行预览功能。")
+            return
+        dlg = wx.DirDialog(self, u"请选择保存文件路径:",
+                          style=wx.DD_DEFAULT_STYLE
+                           | wx.DD_DIR_MUST_EXIST
+                           | wx.DD_CHANGE_DIR,
+                           defaultPath=Application_Settings["Default_Directory"]
+                           )
+
+        if dlg.ShowModal() == wx.ID_OK:
+            threading.Thread(target=self.__cs[0].SaveCrossStitch, args=(dlg.GetPath(),)).start()
+        dlg.Destroy()
+                
     def OnImageZoom(self, event):
         '''
         缩放图片
@@ -385,7 +436,7 @@ class MainFrame(wx.Frame):
         self.FindWindowById(ID_ToolBar_ZoomImage).Enable(flg)
         self.FindWindowById(ID_ToolBar_ZoomImageSpin).Enable(flg)
         self.FindWindowById(ID_ToolBar_GeneratePreview).Enable(flg)
-        self.FindWindowById(ID_ToolBar_SAVE).Enable(flg)
+        self.FindWindowById(ID_ToolBar_Save).Enable(flg)
         self.FindWindowById(ID_ToolBar_ShowImageFormat1).Enable(flg)
         self.FindWindowById(ID_ToolBar_ShowImageFormat2).Enable(flg)
         self.FindWindowById(ID_ToolBar_ShowImageFormat3).Enable(flg)
@@ -648,7 +699,7 @@ class OptionFrame(wx.Frame):
         for id in (ID_Option_PrintScale, ID_Option_PreviewScale):
             obj = self.FindWindowById(id)
             if not Common.IsFloat(obj.GetValue()):
-                self.__ShowError(u"请输入正小数。")
+                Common.ShowError(self, u"请输入正小数。")
                 obj.SetFocus()
                 obj.SetSelection(-1, -1)
                 return False
@@ -656,21 +707,11 @@ class OptionFrame(wx.Frame):
                    ID_Option_Width, ID_Option_Height, ID_Option_CT):
             obj = self.FindWindowById(id)
             if not Common.IsIntOrZero(obj.GetValue()):
-                self.__ShowError(u"请输入零或者其他任意正整数。")
+                Common.ShowError(self, u"请输入零或者其他任意正整数。")
                 obj.SetFocus()
                 obj.SetSelection(-1, -1)
                 return False
         return True
-    
-    def __ShowError(self, message):
-        dlg = wx.MessageDialog(self, message, u"错误", style= wx.OK | wx.ICON_ERROR)
-        dlg.ShowModal()
-        dlg.Destroy()
-    
-    def __ShowInfo(self, message):
-        dlg = wx.MessageDialog(self, message, u"信息", style= wx.OK | wx.ICON_INFORMATION)
-        dlg.ShowModal()
-        dlg.Destroy()
         
 class LogFrame(wx.Frame):
     '''
@@ -680,23 +721,26 @@ class LogFrame(wx.Frame):
         style = wx.RESIZE_BORDER | wx.MINIMIZE_BOX | wx.FRAME_TOOL_WINDOW | wx.CAPTION | wx.CLIP_CHILDREN | wx.STAY_ON_TOP
         size = (wx.DisplaySize()[0] -20, 300)
         pos = (10, wx.DisplaySize()[1] - 310)
-        wx.Frame.__init__(self, parent, ID, title, pos=pos, size=size, style=style)       
-        self.log = wx.TextCtrl(self, -1,
+        wx.Frame.__init__(self, parent, ID, title, pos=pos, size=size, style=style)
+        self.panel = scrolled.ScrolledPanel(self, -1, size=self.GetSize())
+        sizer = wx.GridSizer(1, 1)      
+        self.log = wx.TextCtrl(self.panel, -1,
                     "",
-                   size=self.GetSize(), style=wx.TE_MULTILINE|wx.TE_READONLY)    
-        bsizer = wx.BoxSizer(wx.VERTICAL)
-        bsizer.Add(self.log, 0, wx.GROW|wx.ALL)
-        self.SetSizer(bsizer)
-        self.SetAutoLayout(True)
-        self.Bind(wx.EVT_SIZE, self.OnResize)
+                   size=self.GetSize(), style=wx.TE_MULTILINE|wx.TE_READONLY)
+        sizer = wx.GridSizer(1, 1)
+        sizer.AddF(self.log, wx.SizerFlags().Expand())
+        self.panel.SetSizer(sizer)
+        self.panel.SetAutoLayout(1)
+        self.panel.SetupScrolling()
+        sizer = wx.GridSizer(1, 1)
+        sizer.AddF(self.panel, wx.SizerFlags().Expand())
+        self.SetSizer(sizer)
+        self.SetAutoLayout(1)
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
         
     def OnKeyDown(self, event):
         self.Parent.ProcessEvent(event)
-        
-    def OnResize(self, event):
-        self.log.SetSize(self.GetSize())
-        
+           
     def Log(self, content):
         self.__lastpos = self.log.GetLastPosition()
         self.log.AppendText("%s %s\n" % (time.strftime('%Y-%m-%d %X', time.localtime()), content))
