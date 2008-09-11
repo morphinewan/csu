@@ -157,7 +157,7 @@ class CrossStitch():
         self.__stitchconvas = self.__GetStitchConvas(self.__previewimage)
         wx.PostEvent(self.__sender, PIStitchConvasGenerateEndEvent())
         wx.PostEvent(self.__sender, PIPrintConvasGenerateStartEvent())
-        floss_mask_list = self.GetFlossMaskList(self.GetFlossSummary(self.GetPreviewImage()))
+        floss_mask_list = self.GetFlossMaskList()
         self.__printconvas = self.__GetStitchConvas(self.__previewimage, floss_mask_list)      
         wx.PostEvent(self.__sender, PIPrintConvasGenerateEndEvent())
         wx.PostEvent(self.__sender, PIGenerateEndEvent())
@@ -169,23 +169,68 @@ class CrossStitch():
         images = self.__GetPrintPages(self.GetPrintConvas())
         wx.PostEvent(self.__sender, PICrossStitchSaveStartEvent())
         count = 1
-        total = len(images)        
+        total = len(images) + 3        
+        #按比例缩略图
+        preview_im = self.GetStitchConvas()
+        if self.__args["ForTaobao"]:#淘宝上传专用图处理
+            new_size = (preview_im.GetWidth(), preview_im.GetHeight())
+            if new_size[0] > 500:
+                new_size = (500, int(float(500 * new_size[1]) / new_size[0]))
+            if new_size[1] > 500:
+                new_size = (int(float(500 * new_size[0]) / new_size[1]), 500)
+            preview_im = preview_im.Scale(new_size)
+        elif self.__args["PreviewScale"]:#按比例缩图
+            preview_im = preview_im.Scale(int(preview_im.GetWidth()* float(self.__args["PreviewScale"])), 
+                        int(preview_im.GetHeight()* float(self.__args["PreviewScale"])))
+        save_name = Common.GetOutputFileName(self.GetSourceImageFileName(), outputPath, suffix=u"预览图")
+        preview_im.SaveFile(save_name, wx.BITMAP_TYPE_JPEG)
+        preview_im.Destroy()
+        del preview_im
+        wx.PostEvent(self.__sender, PICrossStitchSavingEvent(count=count, total=total))
+        count += 1
+        
+        #如果参数决定，则只输出预览图
+        if self.__args["OnlyPreview"]:
+            wx.PostEvent(self.__sender, PICrossStitchSaveEndEvent())
+            return
+        
+        #输出用线统计
+        s = self.__MakeFlossSummaryReport()
+        fo = open(Common.GetOutputFileName(self.GetSourceImageFileName(), outputPath, suffix=u"统计", ext=".csv"), 'w')
+        try:
+            fo.write(unicode.encode(s, 'gb2312'))
+        finally:
+            fo.close()
+        wx.PostEvent(self.__sender, PICrossStitchSavingEvent(count=count, total=total))
+        count += 1
+        
+        #输出符号对照表
+        symbol_im = self.__GetSymbolConvas()
+        symbol_im = self.__AddWaterMark(symbol_im)
+        symbol_im.SaveFile(Common.GetOutputFileName(self.GetSourceImageFileName(), outputPath, suffix=u"符号对照表"), wx.BITMAP_TYPE_JPEG)
+        symbol_im.Destroy()
+        del symbol_im
+        wx.PostEvent(self.__sender, PICrossStitchSavingEvent(count=count, total=total))
+        count += 1
+        
         for p_im in images:
             #按比例缩略图
             if self.__args["PrintScale"]:
                 p_im = p_im.Rescale(int(p_im.GetWidth()* float(self.__args["PrintScale"])), 
                             int(p_im.GetHeight()* float(self.__args["PrintScale"])))
-                
+            page = count - 3
             #加注版权水印
             p_im = self.__AddWaterMark(p_im)
             #增加页码
-            p_im = self.__AddPageCount(p_im, count, total)
+            p_im = self.__AddPageCount(p_im, page, total)
             #保存打印文件
-            save_name = Common.GetOutputFileName(self.GetSourceImageFileName(), outputPath, suffix = u'绣图%s' % count)
+            save_name = Common.GetOutputFileName(self.GetSourceImageFileName(), outputPath, suffix = u'绣图%s' % page)
             p_im.SaveFile(save_name, wx.BITMAP_TYPE_JPEG)
             p_im.Destroy()
             wx.PostEvent(self.__sender, PICrossStitchSavingEvent(count=count, total=total))
             count += 1
+        
+        
         wx.PostEvent(self.__sender, PICrossStitchSaveEndEvent())
     
     def __GeneratePreviewImage(self):
@@ -203,6 +248,7 @@ class CrossStitch():
         new_im = self.__ChangeColorTable(new_im)
         wx.PostEvent(self.__sender, PIColourTableChangeEndEvent())
         #减少颜色数
+        self.__previewimage = new_im  #提前复制，以备计算线量
         new_im = self.__ReduceFloss(new_im)
         wx.PostEvent(self.__sender, PIColourTableChangeEndEvent())
         #裁边
@@ -305,12 +351,13 @@ class CrossStitch():
             self.__flossmap.AppendData((red, green, blue), min[0])
             return min[0]
     
-    def GetFlossSummary(self, im):
+    def GetFlossSummary(self):
         '''
         求绣线使用统计
               返回按使用量来倒序排列的dic
         '''
         result = {}
+        im = self.GetPreviewImage()
         for x in range(im.GetWidth()):
             for y in range(im.GetHeight()):
                 rgb = (im.GetRed(x, y), im.GetGreen(x, y), im.GetBlue(x, y))
@@ -366,7 +413,7 @@ class CrossStitch():
         '''
         减少绣线数量
         '''
-        summary = self.GetFlossSummary(im)
+        summary = self.GetFlossSummary()
         total = len(summary)
         count = 1
         if  self.__args["MixColourDist"]:
@@ -396,7 +443,7 @@ class CrossStitch():
                 im.Replace(item[0][0], item[0][1], item[0][2], item[1][0][0], item[1][0][1], item[1][0][2])
                 wx.PostEvent(self.__sender, PIColourDistMixingEvent(total=total, count=count))
                 count += 1
-            summary = self.GetFlossSummary(im)
+            summary = self.GetFlossSummary()
             total = len(summary)
             count = 1
             wx.PostEvent(self.__sender, PIColourDistMixEndEvent(total=total))
@@ -411,7 +458,7 @@ class CrossStitch():
                     self.__MergePixelColor(im, summary[0][0])
                     wx.PostEvent(self.__sender, PIMaxColourNumReducingEvent(total=total, count=count))
                     count += 1
-                    summary = self.GetFlossSummary(im)
+                    summary = self.GetFlossSummary()
                 total = len(summary)
                 count = 1
                 wx.PostEvent(self.__sender, PIMaxColourNumReduceEndEvent(total=total, param=self.__args["MaxColourNum"]))                
@@ -423,7 +470,7 @@ class CrossStitch():
                     self.__MergePixelColor(im, summary[0][0])
                     wx.PostEvent(self.__sender, PIMinFlossNumReducingEvent(total=total, count=count))
                     count += 1
-                    summary = self.GetFlossSummary(im)
+                    summary = self.GetFlossSummary()
                     if len(summary) == 0:
                         break
                 total = len(summary)
@@ -604,11 +651,12 @@ class CrossStitch():
                     y = y + self.__BoldGridLineWidth
         return im
     
-    def GetFlossMaskList(self, summary):
+    def GetFlossMaskList(self):
         '''
         根据用线统计列表，得到用线对应的符号列表
         '''
         result = {}
+        summary = self.GetFlossSummary()
         for k in range(len(summary)):
             result[summary[k][0]] = self.__GetSymbolMask(summary[k][0], unichr(self.__Symbols[k]))
         return result
@@ -744,7 +792,6 @@ class CrossStitch():
         mark = u"彩雲阁姊妹篇工作室出品"
         gcdc.SetFont(font)
         textsize = gcdc.GetTextExtent(mark)
-        print textsize
         gcdc.DrawText(mark, (im.GetWidth() - textsize[0]) //2 ,(im.GetHeight() - textsize[1]) //2)
         gcdc.Destroy()
         dc.Destroy()
@@ -762,6 +809,98 @@ class CrossStitch():
         dc.DrawText(text, im.GetWidth() - textsize[0] - 10 , 5)
         dc.Destroy()
         return image.ConvertToImage()
+    
+    def __MakeFlossSummaryReport(self):
+        '''
+        输出用线统计
+        '''
+        result = u"\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"\n" % (u'线号', u'描述', u'格子数', u'支数(每支1800格)', u'支数')
+        count = 0
+        summary = self.GetFlossSummary()
+        for k in summary:
+            if COLOR_TABLE.has_key(k[0]) == 0:
+                raise Exception("Can't found floss defination in map. Something wrong maybe happend.")
+            floss = COLOR_TABLE.get(k[0])
+            skeins = k[1] % 1800 == 0 and (k[1] / 1800,)[0] or k[1] / 1800 + 1
+            result += "\"%s\",\"%s\",\"%d\",\"%0.2f\",\"%d\"\n" % \
+                (floss.id, floss.description, k[1], float(k[1]) / 1800, skeins)
+            count += skeins
+        result += u"\"总计\",\"\",\"\",\"\",\"%d\"" % count
+        return result
+    
+    def __GetSymbolConvas(self):
+        '''
+        获取针线一览
+        '''
+        floss_mask_list = self.GetFlossMaskList()
+        gridsize = (self.GetPreviewImage().GetWidth(), self.GetPreviewImage().GetHeight())
+        floss_count = len(floss_mask_list)
+        height = (self.__StitchSize + 5) * (floss_count // 3 + 1) + 150
+        
+        dc = wx.MemoryDC()
+        image = wx.EmptyBitmap(1000, height)
+        dc.SelectObject(image)
+        dc.SetBackground(wx.Brush((255, 255, 255)))
+        dc.Clear()
+        dc.SetTextForeground((0, 0, 0))
+        dc.SetPen(wx.Pen((0, 0, 0)))
+        font = wx.Font(18, wx.FONTFAMILY_DEFAULT, wx.NORMAL, wx.FONTWEIGHT_BOLD,underline=0,encoding=wx.FONTENCODING_CP932)
+        dc.SetFont(font)
+        dc.DrawText(u"彩雲阁姊妹篇工作室出品", 10, 10)
+        dc.DrawLine(0, 40, 1000, 40)
+        font = wx.Font(11, wx.FONTFAMILY_DEFAULT, wx.NORMAL, wx.FONTWEIGHT_BOLD,underline=0,encoding=wx.FONTENCODING_CP932)
+        dc.SetFont(font)
+        dc.DrawText(u"作者:", 10, 50)
+        dc.DrawText(u"版权:", 10, 70)
+        dc.DrawText(u"格子数:", 10, 90)
+        dc.DrawText(u"大小:", 10, 110)
+        dc.DrawText(u"shizixiu@morphinewan.com", 130, 50)
+        dc.DrawText(u"Copyright (C) 2008-2099 All Rights Reserved.", 130, 70)
+        dc.DrawText(u"宽%d格 × 高%d格" % gridsize, 130, 90)
+        if self.__args["CT"]:
+            ct = self.__args["CT"]
+        else:
+            ct = 14
+        gridsize = (gridsize[0] * 2.54 / ct, gridsize[1] * 2.54 / ct, ct)
+        dc.DrawText(u"宽%0.2f厘米 × 高%0.2f厘米  %dct" % gridsize, 130, 110)
+        x, y, count = 5, 150, 0
+        dc_temp = wx.MemoryDC()
+        for k in floss_mask_list.iteritems():
+            #画标记        
+            dc_temp.SelectObject(wx.BitmapFromImage(k[1]))
+            #复制截取部分的图像到新建的位图上
+            dc.Blit(x, y, k[1].GetWidth(), k[1].GetHeight(), dc_temp, 0, 0)
+            #画原图样
+            x += self.__StitchSize + 5
+            dc.SetPen(wx.Pen(k[0]))
+            dc.SetBrush(wx.Brush(k[0]))
+            dc.DrawRoundedRectangle(x, y, self.__StitchSize, self.__StitchSize, 1)
+            #取得Floss信息
+            floss = COLOR_TABLE[k[0]]
+            #画ID号
+            x += self.__StitchSize + 5
+            textsize = dc.GetTextExtent('%- 10s' % floss.id)
+            dc.SetPen(wx.Pen((0, 0, 0)))
+            dc.DrawText('%- 10s' % floss.id, x, y + (self.__StitchSize - textsize[1]) // 2)
+             #画描述
+            x += 50
+            dc.DrawText(floss.description, x, y + (self.__StitchSize - textsize[1]) // 2)
+            if count == 0:
+                x = 400
+                count += 1
+            elif count == 1:
+                x = 700
+                count += 1
+            else:
+                x = 5   
+                y += self.__StitchSize + 5
+                count = 0
+        dc_temp.Destroy()
+        dc.Destroy()
+        result = image.ConvertToImage()
+        image.Destroy()
+        return result
+
             
 def LoadColorTable():
     '''
