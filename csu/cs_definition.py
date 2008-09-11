@@ -26,7 +26,7 @@ ID_ToolBar_OpenFile = wx.NewId()
 ID_ToolBar_ZoomImage = wx.NewId()
 ID_ToolBar_ZoomImageSpin = wx.NewId()
 ID_ToolBar_GeneratePreview = wx.NewId()
-ID_ToolBar_SAVE = wx.NewId()
+ID_ToolBar_Save = wx.NewId()
 
 ID_ToolBar_ShowImageFormat1 = wx.NewId()
 ID_ToolBar_ShowImageFormat2 = wx.NewId()

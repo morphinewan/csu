@@ -1,42 +1,9 @@
 # -*- coding: utf-8 -*-
 import sys,os
 import wx
-import wx.lib.newevent
 import time
 import func as Common
-
-(FlossMapLoadedEvent, EVT_FLOSSMAP_LOADED) = wx.lib.newevent.NewEvent()
-
-(PIGenerateStartEvent, EVT_PI_GENERATE_START) = wx.lib.newevent.NewEvent()
-(PIGenerateEndEvent, EVT_PI_GENERATE_END) = wx.lib.newevent.NewEvent()
-(PIResizedEvent, EVT_PI_RESIZED) = wx.lib.newevent.NewEvent()
-(PIColourTableChangeStartEvent, EVT_PI_COLOURTABLE_CHANGE_START) = wx.lib.newevent.NewEvent()
-(PIColourTableChangeEndEvent, EVT_PI_COLOURTABLE_CHANGE_END) = wx.lib.newevent.NewEvent()
-(PIColourTableChangingEvent, EVT_PI_COLOURTABLE_CHANGING) = wx.lib.newevent.NewEvent()
-
-(PIColourDistMixStartEvent, EVT_PI_COLOUR_DIST_MIX_START) = wx.lib.newevent.NewEvent()
-(PIColourDistMixEndEvent, EVT_PI_COLOUR_DIST_MIX_END) = wx.lib.newevent.NewEvent()
-(PIColourDistMixingEvent, EVT_PI_COLOUR_DIST_MIXING) = wx.lib.newevent.NewEvent()
-
-(PIMaxColourNumReduceStartEvent, EVT_PI_MAX_COLOUR_NUM_REDUCE_START) = wx.lib.newevent.NewEvent()
-(PIMaxColourNumReduceEndEvent, EVT_PI_MAX_COLOUR_NUM_REDUCE_END) = wx.lib.newevent.NewEvent()
-(PIMaxColourNumReducingEvent, EVT_PI_MAX_COLOUR_NUM_REDUCING) = wx.lib.newevent.NewEvent()
-
-(PIMinFlossNumReduceStartEvent, EVT_PI_MIN_FLOSS_NUM_REDUCE_START) = wx.lib.newevent.NewEvent()
-(PIMinFlossNumReduceEndEvent, EVT_PI_MIN_FLOSS_NUM_REDUCE_END) = wx.lib.newevent.NewEvent()
-(PIMinFlossNumReducingEvent, EVT_PI_MIN_FLOSS_NUM_REDUCING) = wx.lib.newevent.NewEvent()
-
-(PICropSideStartEvent, EVT_PI_CROPSIDE_START) = wx.lib.newevent.NewEvent()
-(PICropSideEndEvent, EVT_PI_CROPSIDE_END) = wx.lib.newevent.NewEvent()
-(PICropSidingEvent, EVT_PI_CROPSIDING) = wx.lib.newevent.NewEvent()
-
-(PIAntiNoiseStartEvent, EVT_PI_ANTINOISE_START) = wx.lib.newevent.NewEvent()
-(PIAntiNoiseEndEvent, EVT_PI_ANTINOISE_END) = wx.lib.newevent.NewEvent()
-(PIAntiNoisingEvent, EVT_PI_ANTINOISING) = wx.lib.newevent.NewEvent()
-
-(PIAntiBGColourStartEvent, EVT_PI_ANTIBGCOLOUR_START) = wx.lib.newevent.NewEvent()
-(PIAntiBGColourEndEvent, EVT_PI_ANTIBGCOLOUR_END) = wx.lib.newevent.NewEvent()
-(PIAntiBGColouringEvent, EVT_ANTIBGCOLOURING) = wx.lib.newevent.NewEvent()
+from cross_stitch_event import *
 
 class Floss():
     '''
@@ -124,6 +91,9 @@ class CrossStitch():
         self.__Symbols.extend(range(0x2190, 0x2199))
         self.__Symbols.extend(range(0x2460, 0x2500))
         
+        #转换条件
+        self.__args = None
+        
     def GetSourceImage(self):
         '''
         获取原图
@@ -155,13 +125,22 @@ class CrossStitch():
     
     def GetStitchConvas(self):
         '''
-        取得绣图
+        取得绣图视图1  带格子线
         '''
         return self.__stitchconvas
     
     def GetPrintConvas(self):
+        '''
+        取得绣图视图2  带格子线和符号
+        '''
         return self.__printconvas
     
+    def CanSave(self):
+        '''
+        能不能保存
+        '''
+        return self.__previewimage and self.__stitchconvas and self.__printconvas
+        
     def GeneratePreviewImage(self, dic_args):
         '''
         #生成预览图片
@@ -170,23 +149,52 @@ class CrossStitch():
         #处理背景色
         rgb = Common.Hex2RGB(dic_args["BgColour"])
         self.__BackgroundColor = self.__GetMinDistanceColor(rgb[0], rgb[1], rgb[2])
+        #保存参数
+        self.__args = dic_args
         #生成图片
-        self.__previewimage = self.__GeneratePreviewImage(dic_args)
-        self.__stitchconvas = self.__GetStitchConvas(self.__previewimage, dic_args)
+        self.__previewimage = self.__GeneratePreviewImage()
+        wx.PostEvent(self.__sender, PIStitchConvasGenerateStartEvent())
+        self.__stitchconvas = self.__GetStitchConvas(self.__previewimage)
+        wx.PostEvent(self.__sender, PIStitchConvasGenerateEndEvent())
+        wx.PostEvent(self.__sender, PIPrintConvasGenerateStartEvent())
         floss_mask_list = self.GetFlossMaskList(self.GetFlossSummary(self.GetPreviewImage()))
-        self.__printconvas = self.__GetStitchConvas(self.__previewimage, dic_args, floss_mask_list)      
+        self.__printconvas = self.__GetStitchConvas(self.__previewimage, floss_mask_list)      
+        wx.PostEvent(self.__sender, PIPrintConvasGenerateEndEvent())
         wx.PostEvent(self.__sender, PIGenerateEndEvent())
     
-    def SaveCrossStitch(self):
-        pass
+    def SaveCrossStitch(self, outputPath):
+        '''
+        保存绣品文件
+        '''
+        images = self.__GetPrintPages(self.GetPrintConvas())
+        wx.PostEvent(self.__sender, PICrossStitchSaveStartEvent())
+        count = 1
+        total = len(images)        
+        for p_im in images:
+            #按比例缩略图
+            if self.__args["PrintScale"]:
+                p_im = p_im.Rescale(int(p_im.GetWidth()* float(self.__args["PrintScale"])), 
+                            int(p_im.GetHeight()* float(self.__args["PrintScale"])))
+                
+            #加注版权水印
+            p_im = self.__AddWaterMark(p_im)
+            #增加页码
+            p_im = self.__AddPageCount(p_im, count, total)
+            #保存打印文件
+            save_name = Common.GetOutputFileName(self.GetSourceImageFileName(), outputPath, suffix = u'绣图%s' % count)
+            p_im.SaveFile(save_name, wx.BITMAP_TYPE_JPEG)
+            p_im.Destroy()
+            wx.PostEvent(self.__sender, PICrossStitchSavingEvent(count=count, total=total))
+            count += 1
+        wx.PostEvent(self.__sender, PICrossStitchSaveEndEvent())
     
-    def __GeneratePreviewImage(self, dic_args):
+    def __GeneratePreviewImage(self):
         '''
         根据参数作成预览图
         '''
         im = self.__sourceimage[1]
         #计算绣图像素级大小
-        (w, h) = self.__GetStitchSize(im.GetSize(), dic_args)
+        (w, h) = self.__GetStitchSize(im.GetSize())
         #把原图片按照格子数重新Resize
         new_im = im.Scale(w, h)
         wx.PostEvent(self.__sender, PIResizedEvent(width=w, height=h))
@@ -195,30 +203,30 @@ class CrossStitch():
         new_im = self.__ChangeColorTable(new_im)
         wx.PostEvent(self.__sender, PIColourTableChangeEndEvent())
         #减少颜色数
-        new_im = self.__ReduceFloss(new_im, dic_args)
+        new_im = self.__ReduceFloss(new_im)
         wx.PostEvent(self.__sender, PIColourTableChangeEndEvent())
         #裁边
-        if dic_args["CropSide"]:
+        if self.__args["CropSide"]:
             wx.PostEvent(self.__sender, PICropSideStartEvent())
             new_im = self.__CropSide(new_im)
             wx.PostEvent(self.__sender, PICropSideEndEvent())
         #反噪点
-        if dic_args["AntiNoise"]:
+        if self.__args["AntiNoise"]:
             wx.PostEvent(self.__sender, PIAntiNoiseStartEvent())
             new_im = self.__AntiNoise(new_im)
             wx.PostEvent(self.__sender, PIAntiNoiseEndEvent())
         #除去背景相近颜色
-        if dic_args["AntiBgColour"]:
+        if self.__args["AntiBgColour"]:
             wx.PostEvent(self.__sender, PIAntiBGColourStartEvent())
-            new_im = self.__AntiBgColor(new_im, dic_args["MixColourDist"])
+            new_im = self.__AntiBgColor(new_im, self.__args["MixColourDist"])
             wx.PostEvent(self.__sender, PIAntiBGColourEndEvent())        
         return new_im
     
-    def __GetStitchSize(self, size, dic_args):
+    def __GetStitchSize(self, size):
         #没有设置输出大小，默认为宽度200格
         width = 200
         height = 200
-        p_size = (dic_args["Width"], dic_args["Height"])
+        p_size = (self.__args["Width"], self.__args["Height"])
         if p_size[0].count("cm") > 0:
             #厘米为长度的场合,折算一下，厘米折算成英寸
             p_size[0] = p_size[0].replace("cm", "")
@@ -227,7 +235,7 @@ class CrossStitch():
             #厘米为长度的场合,折算一下，厘米折算成英寸
             p_size[1] = p_size[1].replace("cm", "")
             p_size[1] = "%0.2finches" % (float(p_size[1]) / 2.45)
-        ct = dic_args["CT"]
+        ct = self.__args["CT"]
         if p_size[0].count("inches") > 0:
             #英寸为长度的场合,折算一下，英寸折算成格子
             p_size[0] = p_size[0].replace("inches", "")
@@ -354,14 +362,14 @@ class CrossStitch():
                             result[1] = distence
                     im.SetRGB(x, y, result[0][0], result[0][1], result[0][2])
     
-    def __ReduceFloss(self, im, dic_args):
+    def __ReduceFloss(self, im):
         '''
         减少绣线数量
         '''
         summary = self.GetFlossSummary(im)
         total = len(summary)
-        count = 0
-        if dic_args["MixColourDist"]:
+        count = 1
+        if  self.__args["MixColourDist"]:
             #合并颜色相近像素
             wx.PostEvent(self.__sender, PIColourDistMixStartEvent(total=total))
             mapping_table = {}#映射表
@@ -369,7 +377,7 @@ class CrossStitch():
                 for j in range(i+1, len(summary)):
                     #如果两种颜色小于特定距离，则记录在映射表里面
                     dist = Common.GetRGBDistance(summary[i][0], summary[j][0])
-                    if dist <= dic_args["MixColourDist"]:
+                    if dist <= self.__args["MixColourDist"]:
                         if mapping_table.has_key(summary[i][0]):
                             #如果存在key，则判断是否距离更小
                             if mapping_table[summary[i][0]][1] > dist:
@@ -390,28 +398,28 @@ class CrossStitch():
                 count += 1
             summary = self.GetFlossSummary(im)
             total = len(summary)
-            count = 0
+            count = 1
             wx.PostEvent(self.__sender, PIColourDistMixEndEvent(total=total))
-        if dic_args["MaxColourNum"]  or dic_args["MinFlossNum"]:
+        if self.__args["MaxColourNum"]  or self.__args["MinFlossNum"]:
             #取得绣线使用统计
-            if dic_args["MaxColourNum"]:
-                wx.PostEvent(self.__sender, PIMaxColourNumReduceStartEvent(total=total, param=dic_args["MaxColourNum"]))
+            if self.__args["MaxColourNum"]:
+                wx.PostEvent(self.__sender, PIMaxColourNumReduceStartEvent(total=total, param=self.__args["MaxColourNum"]))
                 #限定最多使用线量
                 #如果实际颜色数大于要求数
-                total = len(summary) - dic_args["MaxColourNum"]
-                while len(summary) > dic_args["MaxColourNum"]:
+                total = len(summary) - self.__args["MaxColourNum"]
+                while len(summary) > self.__args["MaxColourNum"]:
                     self.__MergePixelColor(im, summary[0][0])
                     wx.PostEvent(self.__sender, PIMaxColourNumReducingEvent(total=total, count=count))
                     count += 1
                     summary = self.GetFlossSummary(im)
                 total = len(summary)
-                count = 0
-                wx.PostEvent(self.__sender, PIMaxColourNumReduceEndEvent(total=total, param=dic_args["MaxColourNum"]))                
-            if dic_args["MinFlossNum"]:                
-                wx.PostEvent(self.__sender, PIMinFlossNumReduceStartEvent(total=total, param=dic_args["MinFlossNum"]))
+                count = 1
+                wx.PostEvent(self.__sender, PIMaxColourNumReduceEndEvent(total=total, param=self.__args["MaxColourNum"]))                
+            if self.__args["MinFlossNum"]:                
+                wx.PostEvent(self.__sender, PIMinFlossNumReduceStartEvent(total=total, param=self.__args["MinFlossNum"]))
                 #剔除使用量少于特定值的线条
                 #如果检索到数量大于特定值的，则跳出不做了
-                while summary[0][1]  < dic_args["MinFlossNum"]:
+                while summary[0][1]  < self.__args["MinFlossNum"]:
                     self.__MergePixelColor(im, summary[0][0])
                     wx.PostEvent(self.__sender, PIMinFlossNumReducingEvent(total=total, count=count))
                     count += 1
@@ -420,7 +428,7 @@ class CrossStitch():
                         break
                 total = len(summary)
                 count = total
-                wx.PostEvent(self.__sender, PIMinFlossNumReduceEndEvent(total=total, param=dic_args["MinFlossNum"])) 
+                wx.PostEvent(self.__sender, PIMinFlossNumReduceEndEvent(total=total, param=self.__args["MinFlossNum"])) 
         return im
         
     def __CropSide(self, im):
@@ -464,7 +472,7 @@ class CrossStitch():
         反噪点
         '''
         total = im.GetWidth() * im.GetHeight()
-        count = 0
+        count = 1
         for i in range(im.GetWidth()):
             for j in range(im.GetHeight()):
                 wx.PostEvent(self.__sender, PIAntiNoisingEvent(count=count, total=total))
@@ -485,7 +493,7 @@ class CrossStitch():
         去除和背景颜色相近的颜色
         '''
         total = im.GetWidth() * im.GetHeight()
-        count = 0
+        count = 1
         for i in range(im.GetWidth()):
             for j in range(im.GetHeight()):
                 wx.PostEvent(self.__sender, PIAntiBGColouringEvent(count=count, total=total))
@@ -495,7 +503,7 @@ class CrossStitch():
                     im.SetRGB(i, j, self.__BackgroundColor[0], self.__BackgroundColor[1], self.__BackgroundColor[2])
         return im
         
-    def __GetStitchConvas(self, source_im, dic_args, mask_dic = None):
+    def __GetStitchConvas(self, source_im, mask_dic = None):
         '''
         转换绣图，带边框
         '''
@@ -524,12 +532,15 @@ class CrossStitch():
         im = wx.EmptyImage(w_total, h_total)
         #第一行第一列定位
         x = y = self.__BoldGridLineWidth
+        #事件发生时的计数参数
+        event_total = w * h
+        event_count = 1
         if mask_dic:
         #如果参数mask_dic存在的话，则表示这是在输出正式绣图
             bit_map = wx.BitmapFromImage(im)
             dc = wx.MemoryDC(bit_map)
             bg_image = wx.EmptyImage(self.__StitchSize, self.__StitchSize)
-            if dic_args["DisabledBgColour"]:#如果禁止输出背景色，则输出白色
+            if self.__args["DisabledBgColour"]:#如果禁止输出背景色，则输出白色
                 bg_image.SetRGBRect((0, 0, self.__StitchSize, self.__StitchSize), 255, 255, 255)
             else:
                 bg_image.SetRGBRect((0, 0, self.__StitchSize, self.__StitchSize), self.__BackgroundColor[0], self.__BackgroundColor[1], self.__BackgroundColor[2])
@@ -551,6 +562,8 @@ class CrossStitch():
                     else:
                         #否则加上细线条
                         x = x + self.__BoldGridLineWidth
+                    wx.PostEvent(self.__sender, PIPrintConvasGeneratingEvent(total=event_total, count=event_count))
+                    event_count += 1
                 #初始化横坐标
                 x = self.__BoldGridLineWidth
                 #加上绣格块宽度
@@ -577,6 +590,8 @@ class CrossStitch():
                     else:
                         #否则加上细线条
                         x = x + self.__BoldGridLineWidth
+                    wx.PostEvent(self.__sender, PIStitchConvasGeneratingEvent(total=event_total, count=event_count))
+                    event_count += 1
                 #初始化横坐标
                 x = self.__BoldGridLineWidth
                 #加上绣格块宽度
@@ -618,111 +633,135 @@ class CrossStitch():
         dc.DrawText(symbol, position[0], position[1])
         return im.ConvertToImage()
     
-#    def __GetPrintPages(self, im):
-#        '''
-#        分页最终图片
-#        '''
-#        __PageWith = 85 * self.__StitchSize
-#        __PageHeight = 120 * self.__StitchSize
-#        __BlankBarSize = 100 #旁边空白的空间大小
-#        results = []
-#        #计算页数
-#        if im.size[0] % __PageWith:
-#            wp = im.size[0] // __PageWith + 1
-#        else:
-#            wp = im.size[0] // __PageWith
-#        if im.size[1] % __PageHeight:
-#            hp = im.size[1] // __PageHeight + 1
-#        else:
-#            hp = im.size[1] // __PageHeight    
-#        font = ImageFont.truetype("simsun.ttc", 40, encoding="Unicode")
-#        #切割页面   
-#        for i in range(wp):
-#            for j in range(hp):
-#                #计算x,y轴起始坐标
-#                x_start = __PageWith*i
-#                y_start = __PageHeight*j
-#                x_end = (i+1)*__PageWith
-#                #如果超长，则用上限
-#                if x_end > im.size[0]:
-#                    x_end = im.size[0]
-#                y_end = (j+1)*__PageHeight
-#                if y_end > im.size[1]:
-#                    y_end = im.size[1]
-#                maskArea = []
-#                #往上往后得重复三行
-#                if y_start != 0:
-#                    if x_start != 0:
-#                        maskArea.append((__BlankBarSize, __BlankBarSize, __BlankBarSize + x_end - x_start + self.__StitchSize * 3, __BlankBarSize + self.__StitchSize * 3))
-#                    else:
-#                        maskArea.append((__BlankBarSize, __BlankBarSize, __BlankBarSize + x_end - x_start, __BlankBarSize + self.__StitchSize * 3))
-#                    y_start -= self.__StitchSize * 3
-#                if x_start != 0:                
-#                    if y_start != 0:
-#                        maskArea.append((__BlankBarSize, __BlankBarSize +  self.__StitchSize * 3, __BlankBarSize + self.__StitchSize * 3, __BlankBarSize + y_end - y_start))
-#                    else:
-#                        maskArea.append((__BlankBarSize, __BlankBarSize, __BlankBarSize + self.__StitchSize * 3, __BlankBarSize + y_end - y_start))
-#                    x_start -= self.__StitchSize * 3
-#                #从原图截取所需的部分
-#                new_im = im.crop((x_start, y_start, x_end, y_end))
-#                result_im = Image.new("RGBA", (__PageWith + __BlankBarSize*2, __PageHeight + __BlankBarSize*2), (255, 255, 255))
-#                result_im.paste(new_im, (__BlankBarSize, __BlankBarSize))
-#                textdraw = ImageDraw.Draw(result_im)
-#                grid_width = (self.__StitchSize + self.__NormalGridLineWidth) * self.__BoldGridLinePerStitch + (self.__BoldGridLineWidth - self.__NormalGridLineWidth)
-#                for x in range(x_start, x_end):
-#                    #描绘X轴
-#                    #当遍历到第10根格子线的时候，写上列数
-#                    if not (x - self.__BoldGridLineWidth) % grid_width:
-#                        value = str((x - self.__BoldGridLineWidth) * 10 // grid_width)
-#                        textsize = textdraw.textsize(value, font)
-#                        textdraw.text((x - x_start + __BlankBarSize - textsize[0] // 2, __BlankBarSize - textsize[1]), value, font=font, fill=(0, 0, 0))
-#                for y in range(y_start, y_end):
-#                    #描绘Y轴
-#                    #当遍历到第10根格子线的时候，写上行数
-#                    if not (y - self.__BoldGridLineWidth) % grid_width:
-#                        value = str((y - self.__BoldGridLineWidth) * 10 // grid_width)
-#                        textsize = textdraw.textsize(value, font)
-#                        textdraw.text((__BlankBarSize - textsize[0] - 10, y - y_start + __BlankBarSize - textsize[1] // 2), value, font=font, fill=(0, 0, 0))
-#                #增加遮盖
-#                for area in maskArea:
-#                    mask_image = Image.new("RGBA", (area[2] - area[0], area[3] - area[1]), (0, 0, 0, 200))       
-#                    result_im.paste((100, 100, 100), box = area, mask = mask_image)                
-#                del textdraw 
-#                results.append(result_im)
-#                del new_im
-#                del result_im    
-#        return results
-#    
-#    def __AddWaterMark(self, im):
-#        '''
-#        加注版权水印
-#        '''
-#        mask_size = (im.size[0] // 2, im.size[1] // 2)    
-#        draw = ImageDraw.Draw(im)
-#        mark = "shizixiu@morphinewan.com"
-#        font_size = 60
-#        font = ImageFont.truetype("ARIALBD.ttf", font_size)
-#        textsize = draw.textsize(mark, font = font)
-#        while textsize[0] > mask_size[0] or textsize[1] > mask_size[1]:
-#            font_size -= 1
-#            font = ImageFont.truetype("ARIALBD.ttf", font_size)
-#            textsize = draw.textsize(mark, font = font)
-#        mark_image = Image.new("RGBA", textsize, (255, 255, 255, 255)) 
-#        mask_image = Image.new("RGBA", textsize, (0, 0, 0, 50))   
-#        draw = ImageDraw.Draw(mark_image)
-#        draw.text((0,0) , mark, font = font, fill=(0, 0, 0))  
-#        im.paste(mark_image, ((im.size[0] - mark_image.size[0]) //2 ,(im.size[1] - mark_image.size[1]) //2), mask = mask_image)
-#        del draw
-#        return im
-#    
-#    def __AddPageCount(self, im, index, total):
-#        draw = ImageDraw.Draw(im)
-#        text = u"页码:%d/%d" % (index, total)
-#        font = ImageFont.truetype("SIMSUN.ttc", 24)
-#        textsize = draw.textsize(text, font = font)
-#        draw.text((im.size[0] - textsize[0] - 10,5) , text, font = font, fill=(0, 0, 0))    
-#        del draw
-#        return im
+    def __GetPrintPages(self, im):
+        '''
+        分页最终图片
+        '''
+        __PageWith = 85 * self.__StitchSize
+        __PageHeight = 120 * self.__StitchSize
+        __BlankBarSize = 100 #旁边空白的空间大小
+        results = []
+        #计算页数
+        if im.GetWidth() % __PageWith:
+            wp = im.GetWidth() // __PageWith + 1
+        else:
+            wp = im.GetWidth() // __PageWith
+        if im.GetHeight() % __PageHeight:
+            hp = im.GetHeight() // __PageHeight + 1
+        else:
+            hp = im.GetHeight() // __PageHeight
+        #绘图用DC
+        dc = wx.MemoryDC()
+        font = wx.Font(40, wx.FONTFAMILY_DEFAULT, wx.NORMAL, wx.FONTWEIGHT_NORMAL,underline=0,encoding=wx.FONTENCODING_CP932)        
+        #为在图像上写字，准备设置字体
+        dc.SetFont(font)
+        #设置写字的颜色为黑色
+        dc.SetTextForeground((0, 0, 0))
+        #被复制图片的DC对象
+        dc_temp = wx.MemoryDC()       
+        #切割页面   
+        for i in range(wp):
+            for j in range(hp):
+                #计算x,y轴起始坐标
+                x_start = __PageWith*i
+                y_start = __PageHeight*j
+                x_end = (i+1)*__PageWith
+                #如果超长，则用上限
+                if x_end > im.GetWidth():
+                    x_end = im.GetWidth()
+                y_end = (j+1)*__PageHeight
+                if y_end > im.GetHeight():
+                    y_end = im.GetHeight()
+                maskArea = []
+                #往上往后得重复三行
+                if y_start != 0:
+                    if x_start != 0:
+                        maskArea.append(wx.Rect(__BlankBarSize, __BlankBarSize, x_end - x_start + self.__StitchSize * 3, self.__StitchSize * 3))
+                    else:
+                        wx.Rect2D
+                        maskArea.append(wx.Rect(__BlankBarSize, __BlankBarSize, x_end - x_start, self.__StitchSize * 3))
+                    y_start -= self.__StitchSize * 3
+                if x_start != 0:                
+                    if y_start != 0:
+                        maskArea.append(wx.Rect(__BlankBarSize, __BlankBarSize +  self.__StitchSize * 3, self.__StitchSize * 3, y_end - y_start - self.__StitchSize * 3))
+                    else:
+                        maskArea.append(wx.Rect(__BlankBarSize, __BlankBarSize, self.__StitchSize * 3, y_end - y_start))
+                    x_start -= self.__StitchSize * 3
+                #从原图截取所需的部分
+                sub_im = im.GetSubImage((x_start, y_start, x_end - x_start, y_end - y_start))
+                new_im = wx.BitmapFromImage(sub_im) #现在已经是bitmap格式了
+                sub_im.Destroy()
+                #新建一个位图
+                result_im = wx.EmptyBitmap(__PageWith + __BlankBarSize*2, __PageHeight + __BlankBarSize*2)  #现在已经是bitmap格式了                
+                #设置背景色为白色
+                dc.SelectObject(result_im)
+                dc.SetBackground(wx.Brush((255, 255, 255)))
+                dc.Clear()                
+                dc_temp.SelectObject(new_im)
+                #复制截取部分的图像到新建的位图上
+                dc.Blit(__BlankBarSize, __BlankBarSize, new_im.GetWidth(), new_im.GetHeight(), dc_temp, 0, 0)                
+                grid_width = (self.__StitchSize + self.__NormalGridLineWidth) * self.__BoldGridLinePerStitch + (self.__BoldGridLineWidth - self.__NormalGridLineWidth)
+                for x in range(x_start, x_end):
+                    #描绘X轴
+                    #当遍历到第10根格子线的时候，写上列数
+                    if not (x - self.__BoldGridLineWidth) % grid_width:
+                        value = str((x - self.__BoldGridLineWidth) * 10 // grid_width)                        
+                        textsize = dc.GetTextExtent(value)
+                        dc.DrawText(value, x - x_start + __BlankBarSize - textsize[0] // 2, __BlankBarSize - textsize[1])
+                for y in range(y_start, y_end):
+                    #描绘Y轴
+                    #当遍历到第10根格子线的时候，写上行数
+                    if not (y - self.__BoldGridLineWidth) % grid_width:
+                        value = str((y - self.__BoldGridLineWidth) * 10 // grid_width)
+                        textsize = dc.GetTextExtent(value)
+                        dc.DrawText(value, __BlankBarSize - textsize[0] - 10, y - y_start + __BlankBarSize - textsize[1] // 2)
+                gcdc = wx.GCDC(dc)
+                gcdc.SetPen(wx.Pen((0, 0, 0, 128)))
+                gcdc.SetBrush(wx.Brush((0, 0, 0, 128)))
+                #增加前页输出部分的阴影效果
+                for area in maskArea:
+                     #阴影效果专用dc                    
+                    gcdc.DrawRectangleRect(area)
+                gcdc.Destroy()
+                #返回wxImage格式
+                results.append(result_im.ConvertToImage())
+                del new_im
+                del result_im
+        dc_temp.Destroy()
+        dc.Destroy()
+        return results
+    
+    def __AddWaterMark(self, im):
+        '''
+        加注版权水印
+        '''
+        dc = wx.MemoryDC()
+        image = wx.BitmapFromImage(im)
+        dc.SelectObject(image)
+        gcdc = wx.GCDC(dc)
+        gcdc.SetTextForeground((0, 0, 0, 50))
+        font = wx.Font(60, wx.FONTFAMILY_DEFAULT, wx.NORMAL, wx.FONTWEIGHT_NORMAL,underline=0,encoding=wx.FONTENCODING_CP932)
+        mark = u"彩雲阁姊妹篇工作室出品"
+        gcdc.SetFont(font)
+        textsize = gcdc.GetTextExtent(mark)
+        print textsize
+        gcdc.DrawText(mark, (im.GetWidth() - textsize[0]) //2 ,(im.GetHeight() - textsize[1]) //2)
+        gcdc.Destroy()
+        dc.Destroy()
+        return image.ConvertToImage()
+    
+    def __AddPageCount(self, im, index, total):
+        dc = wx.MemoryDC()
+        image = wx.BitmapFromImage(im)
+        dc.SelectObject(image)
+        font = wx.Font(34, wx.FONTFAMILY_DEFAULT, wx.NORMAL, wx.FONTWEIGHT_NORMAL,underline=0,encoding=wx.FONTENCODING_CP932)
+        dc.SetFont(font)
+        dc.SetTextForeground((0, 0, 0))
+        text = u"页码:%d/%d" % (index, total)
+        textsize = dc.GetTextExtent(text)
+        dc.DrawText(text, im.GetWidth() - textsize[0] - 10 , 5)
+        dc.Destroy()
+        return image.ConvertToImage()
             
 def LoadColorTable():
     '''
