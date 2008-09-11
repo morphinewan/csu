@@ -89,7 +89,7 @@ def ShowAlert(parent, message):
     dlg.ShowModal()
     dlg.Destroy()
     
-def GetOutputFileName(path, outputPath, suffix = None):
+def GetOutputFileName(path, outputPath, suffix = None, ext=None):
     '''
     从目标文件名得到存储路径中的文件名
     '''
@@ -97,7 +97,11 @@ def GetOutputFileName(path, outputPath, suffix = None):
     extensionName =  os.path.splitext(path)[1]
     fileName = fileName[:len(fileName) - len(extensionName)]
     if suffix:
-        result = "%s\\%s(%s).jpg" %(outputPath, fileName, suffix)
+        result = "%s\\%s(%s)" %(outputPath, fileName, suffix)
     else:
-        result = "%s\\%s.jpg" %(outputPath, fileName)
+        result = "%s\\%s" %(outputPath, fileName)
+    if ext:
+        result += ext
+    else:
+        result += ".jpg"
     return result

@@ -280,8 +280,7 @@ class MainFrame(wx.Frame):
         scale = self.__work_frame.ShowImage(self.__cs[0].GetPreviewImage(), 1)
         self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("%d%%" % (scale*100))
         #显示绣线面板
-        fs =self.__cs[0].GetFlossSummary(self.__cs[0].GetPreviewImage())
-        self.__floss_panel.ShowFlossIno(fs, self.__cs[0].GetFlossMaskList(fs))
+        self.__floss_panel.ShowFlossIno(self.__cs[0].GetFlossSummary(), self.__cs[0].GetFlossMaskList())
         self.__work_frame.Show()
     
     def OnPreviewImageGenerateStart(self, event):
