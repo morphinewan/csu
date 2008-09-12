@@ -45,24 +45,6 @@ class FlossMap():
     
     def SaveData(self):
         Common.SaveToDisk(self.__fl, Common.GetAppPath() + "/flossmap.dat")
-    
-#    def Initialize(self):
-#        self.__fl = {}
-#        for r in range(255):
-#            for g in range(255):
-#                for b in range(255):
-#                    min = [(255,255,255), sys.maxint] #定义一个初始值，距离为-1
-#                    for floss in COLOR_TABLE.itervalues():
-#                        dis = floss.CalcDistance((r, g, b))
-#                        #如果距离小于上一个值，则替代之
-#                        if dis < min[1]:
-#                            min[0] = floss.rgb
-#                            min[1] = dis
-#                        if dis < 100:
-#                            break
-#                    #将该映射关系补充道颜色映射表中
-#                    self.__fl[(r, g, b)] = min[0]
-#                    print len(self.__fl)
         
     def AppendData(self, key, value):
         '''
@@ -112,6 +94,8 @@ class CrossStitch():
         
         #转换条件
         self.__args = None
+        #历史记录
+        self._history = []
         
     def GetSourceImage(self):
         '''
@@ -135,6 +119,18 @@ class CrossStitch():
         if self.__previewimage:
             self.__previewimage.Destroy()
             del self.__previewimage
+        
+        if self.__stitchconvas:
+            self.__stitchconvas.Destroy()
+            del self.__stitchconvas
+            
+        if self.__printconvas:
+            self.__printconvas.Destroy()
+            del self.__printconvas
+            
+        for item in self._history:
+            item.Destroy()            
+        self._history = []
             
     def GetPreviewImage(self):
         '''
@@ -159,6 +155,12 @@ class CrossStitch():
         #生成预览图片
         '''
         wx.PostEvent(self.__sender, PIGenerateStartEvent())
+        #清楚历史记录
+        if not hasattr(self, "_history"):
+            for item in self._history:
+                item.Destroy()            
+            self._history = []
+        
         #处理背景色
         rgb = Common.Hex2RGB(dic_args["BgColour"])
         self.__BackgroundColor = self.__GetMinDistanceColor(rgb[0], rgb[1], rgb[2])
@@ -267,6 +269,36 @@ class CrossStitch():
             count += 1
         wx.PostEvent(self.__sender, PICrossStitchSaveEndEvent())
     
+    def RemoveColor(self, rgb):
+        #移除特定颜色，将旧颜色加入履历
+        self.__history.Append(self.GetPreviewImage())
+        
+        im = self.GetPreviewImage().Copy()
+        im.Replace(rgb[0], rgb[1], rgb[2], self.__BackgroundColor[0], 
+                   self.__BackgroundColor[1], self.__BackgroundColor[2])
+        self.__previewimage = im
+        
+        #如果只是生成预览，则不生成2个视图
+        if not self.__args["OnlyPreview"]:
+            self.GenerateStitchConvas()
+            self.GeneratePrintConvas()
+    
+    def ReplaceColor(self, flossids1, flossid2):
+        #替代颜色
+        self.__history.Append(self.GetPreviewImage())
+        rgb2 = COLOR_TABLE2[flossid2]
+        im = self.GetPreviewImage().Copy()
+        for flossid in flossids1:
+            rgb1 = COLOR_TABLE2[flossid]
+            im.Replace(rgb1[0], rgb1[1], rgb1[2], 
+                       rgb2[0], rgb2[1], rgb2[2])
+        self.__previewimage = im
+        
+        #如果只是生成预览，则不生成2个视图
+        if not self.__args["OnlyPreview"]:
+            self.GenerateStitchConvas()
+            self.GeneratePrintConvas()
+        
     def __GeneratePreviewImage(self):
         '''
         根据参数作成预览图
@@ -951,3 +983,6 @@ def LoadColorTable():
     return result
         
 COLOR_TABLE = LoadColorTable()
+COLOR_TABLE2 = {}
+for floss in COLOR_TABLE.itervalues():
+    COLOR_TABLE2[floss.id] = floss

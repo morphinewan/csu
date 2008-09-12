@@ -182,7 +182,7 @@ class MainFrame(wx.MDIParentFrame):
         
         #初始化界面
         self.__InitLayout()
-    
+        
     def OnCSProcessStartEvent(self, event):
         #取得事件ID
         event_type = event.GetEventType()
@@ -518,8 +518,9 @@ class MainFrame(wx.MDIParentFrame):
             
     
     def OnDebug(self, event):
-        self.__work_frame.ShowImage(self.__cs[0].__GetStitchConvas2())
-        
+        for k, v in cs.COLOR_TABLE.iteritems():
+            print k, v
+     
     def __InitLayout(self):
         self.__option_panel.Hide()
         item = self.GetMenuBar().GetMenus()[1][0].FindItemById(ID_MenuItem_ShowOptionPanel)
@@ -794,9 +795,29 @@ class FlossFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.OnWindowClose)
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
         
+        self.floss_table.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.OnPopupMenu)
+        
+    def OnPopupMenu(self, event):
+        '''
+        右键菜单
+        '''
+        if not hasattr(self, "POPUP_MENU_ID_1"):
+            self.POPUP_MENU_ID_1 = wx.NewId()
+            self.POPUP_MENU_ID_2 = wx.NewId()
+            
+            self.Bind(wx.EVT_MENU, self.OnRemoveColor, id=self.POPUP_MENU_ID_1)
+        menu = wx.Menu()       
+        menu.Append(self.POPUP_MENU_ID_1, u"删除该颜色")
+        menu.Append(self.POPUP_MENU_ID_2, u"替换颜色")
+        self.PopupMenu(menu)
+        menu.Destroy()
+        
     def OnKeyDown(self, event):
         self.Parent.ProcessEvent(event)
-        
+    
+    def OnRemoveColor(self, event):
+        print "remove"
+    
     def OnWindowClose(self, event):
         wx.PostEvent(self.Parent, WorkFrameCloseEvent())
         self.Destroy()
