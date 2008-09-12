@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys,os
 import wx
+import math
 import time
 import func as Common
 from cross_stitch_event import *
@@ -45,6 +46,24 @@ class FlossMap():
     def SaveData(self):
         Common.SaveToDisk(self.__fl, Common.GetAppPath() + "/flossmap.dat")
     
+#    def Initialize(self):
+#        self.__fl = {}
+#        for r in range(255):
+#            for g in range(255):
+#                for b in range(255):
+#                    min = [(255,255,255), sys.maxint] #定义一个初始值，距离为-1
+#                    for floss in COLOR_TABLE.itervalues():
+#                        dis = floss.CalcDistance((r, g, b))
+#                        #如果距离小于上一个值，则替代之
+#                        if dis < min[1]:
+#                            min[0] = floss.rgb
+#                            min[1] = dis
+#                        if dis < 100:
+#                            break
+#                    #将该映射关系补充道颜色映射表中
+#                    self.__fl[(r, g, b)] = min[0]
+#                    print len(self.__fl)
+        
     def AppendData(self, key, value):
         '''
         增加映射关系
@@ -134,12 +153,6 @@ class CrossStitch():
         取得绣图视图2  带格子线和符号
         '''
         return self.__printconvas
-    
-    def CanSave(self):
-        '''
-        能不能保存
-        '''
-        return self.__previewimage and self.__stitchconvas and self.__printconvas
         
     def GeneratePreviewImage(self, dic_args):
         '''
@@ -153,20 +166,38 @@ class CrossStitch():
         self.__args = dic_args
         #生成图片
         self.__previewimage = self.__GeneratePreviewImage()
-        wx.PostEvent(self.__sender, PIStitchConvasGenerateStartEvent())
-        self.__stitchconvas = self.__GetStitchConvas(self.__previewimage)
-        wx.PostEvent(self.__sender, PIStitchConvasGenerateEndEvent())
-        wx.PostEvent(self.__sender, PIPrintConvasGenerateStartEvent())
-        floss_mask_list = self.GetFlossMaskList()
-        self.__printconvas = self.__GetStitchConvas(self.__previewimage, floss_mask_list)      
-        wx.PostEvent(self.__sender, PIPrintConvasGenerateEndEvent())
         wx.PostEvent(self.__sender, PIGenerateEndEvent())
+        #如果只是生成预览，则不生成2个视图
+        if not self.__args["OnlyPreview"]:
+            self.GenerateStitchConvas()
+            self.GeneratePrintConvas()
+            
+    def GenerateStitchConvas(self):
+        '''
+        生成视图1
+        '''
+        wx.PostEvent(self.__sender, PIStitchConvasGenerateStartEvent())
+        self.__stitchconvas = self.__GetStitchConvas()
+        wx.PostEvent(self.__sender, PIStitchConvasGenerateEndEvent())
     
-    def SaveCrossStitch(self, outputPath):
+    def GeneratePrintConvas(self):
+        '''
+        生成视图2
+        '''
+        wx.PostEvent(self.__sender, PIPrintConvasGenerateStartEvent())
+        self.__printconvas = self.__GetPrintConvas()     
+        wx.PostEvent(self.__sender, PIPrintConvasGenerateEndEvent())
+    
+    def SaveCrossStitch(self, outputPath, dic_args):
         '''
         保存绣品文件
         '''
-        images = self.__GetPrintPages(self.GetPrintConvas())
+        #如果还没有生成打印文件，则生成一下
+        if not self.GetPreviewImage():
+            self.GeneratePreviewImage(dic_args)
+            
+        #将打印图片分页处理
+        images = self.__GetPrintPages()
         wx.PostEvent(self.__sender, PICrossStitchSaveStartEvent())
         count = 1
         total = len(images) + 3        
@@ -194,6 +225,12 @@ class CrossStitch():
             wx.PostEvent(self.__sender, PICrossStitchSaveEndEvent())
             return
         
+        #如果还没有生成打印文件，则生成一下
+        if not self.GetStitchConvas():
+            self.GenerateStitchConvas()
+        if not self.GetPrintConvas():
+            self.GeneratePrintConvas()
+        
         #输出用线统计
         s = self.__MakeFlossSummaryReport()
         fo = open(Common.GetOutputFileName(self.GetSourceImageFileName(), outputPath, suffix=u"统计", ext=".csv"), 'w')
@@ -212,25 +249,22 @@ class CrossStitch():
         del symbol_im
         wx.PostEvent(self.__sender, PICrossStitchSavingEvent(count=count, total=total))
         count += 1
-        
+        #分页打印        
         for p_im in images:
             #按比例缩略图
             if self.__args["PrintScale"]:
                 p_im = p_im.Rescale(int(p_im.GetWidth()* float(self.__args["PrintScale"])), 
                             int(p_im.GetHeight()* float(self.__args["PrintScale"])))
-            page = count - 3
             #加注版权水印
             p_im = self.__AddWaterMark(p_im)
             #增加页码
-            p_im = self.__AddPageCount(p_im, page, total)
+            p_im = self.__AddPageCount(p_im, count - 3, total - 3)
             #保存打印文件
-            save_name = Common.GetOutputFileName(self.GetSourceImageFileName(), outputPath, suffix = u'绣图%s' % page)
+            save_name = Common.GetOutputFileName(self.GetSourceImageFileName(), outputPath, suffix = u'绣图%s' % (count - 3))
             p_im.SaveFile(save_name, wx.BITMAP_TYPE_JPEG)
             p_im.Destroy()
             wx.PostEvent(self.__sender, PICrossStitchSavingEvent(count=count, total=total))
             count += 1
-        
-        
         wx.PostEvent(self.__sender, PICrossStitchSaveEndEvent())
     
     def __GeneratePreviewImage(self):
@@ -495,7 +529,7 @@ class CrossStitch():
         #处理右部
         while self.__IsAllPixelBackgroundColor(im, col = x2 - 1):
             x2 -= 1
-        return im.GetSubImage((x1, y1, x2, y2))
+        return im.GetSubImage((x1, y1, x2 - x1, y2 - y1))
     
     def __IsAllPixelBackgroundColor(self, im, col = -1, row  = -1):
         '''
@@ -549,108 +583,99 @@ class CrossStitch():
                     and Common.GetRGBDistance((im.GetRed(i, j), im.GetGreen(i, j), im.GetBlue(i, j)), self.__BackgroundColor) <= dist:
                     im.SetRGB(i, j, self.__BackgroundColor[0], self.__BackgroundColor[1], self.__BackgroundColor[2])
         return im
-        
-    def __GetStitchConvas(self, source_im, mask_dic = None):
+    
+    def __GetStitchConvas(self):
         '''
         转换绣图，带边框
         '''
-        w, h = source_im.GetWidth(), source_im.GetHeight()
-        #计算带边框后的图像像素值
-        #1.扩大像素为马赛克块后的数值
-        w_total = w * (self.__StitchSize + self.__NormalGridLineWidth) #加上右边和下边两条边框
-        h_total = h * (self.__StitchSize + self.__NormalGridLineWidth)
-        #如果宽度大于一个基本的格子，则开始计算粗线条（默认整体图片边框为非粗线条）
-        if w > self.__BoldGridLinePerStitch:        
-            if w % self.__BoldGridLinePerStitch:  
-                #如果宽度不能整除格子宽度，则表示图像内部的粗线条数等于格子数       
-                w_total = w_total + (w // self.__BoldGridLinePerStitch) * (self.__BoldGridLineWidth - self.__NormalGridLineWidth) 
-            else:
-                #如果宽度整除格子宽度，则表示图像内部的粗线条数等于格子数-1
-                w_total = w_total + (w // self.__BoldGridLinePerStitch - 1) * (self.__BoldGridLineWidth - self.__NormalGridLineWidth)
-        if h > self.__BoldGridLinePerStitch:
-            if h % self.__BoldGridLinePerStitch:            
-                h_total = h_total + (h // self.__BoldGridLinePerStitch) * (self.__BoldGridLineWidth - self.__NormalGridLineWidth)
-            else:
-                h_total = h_total + (h // self.__BoldGridLinePerStitch - 1) * (self.__BoldGridLineWidth - self.__NormalGridLineWidth)
-        #再处理顶部和左部的边框，默认为细边框
-        w_total = w_total + self.__BoldGridLineWidth * 2 - self.__NormalGridLineWidth
-        h_total = h_total + self.__BoldGridLineWidth * 2 - self.__NormalGridLineWidth
-        #根据最新的大小，新建一个图像
-        im = wx.EmptyImage(w_total, h_total)
-        #第一行第一列定位
-        x = y = self.__BoldGridLineWidth
-        #事件发生时的计数参数
+        source_im = self.GetPreviewImage()
+        w, h = source_im.GetWidth()*self.__StitchSize, source_im.GetHeight()*self.__StitchSize
+        im = source_im.Scale(w, h)
+        #把背景色替换成白色
+        if self.__args["DisabledBgColour"]:
+            #如果禁止输出背景色，则替换
+            im.Replace(self.__BackgroundColor[0], self.__BackgroundColor[1], self.__BackgroundColor[2], 255, 255, 255)
+        dc = wx.MemoryDC()
+        bitmap = wx.BitmapFromImage(im)
+        dc.SelectObject(bitmap)
+        normal_pen = wx.Pen((0, 0, 0), self.__NormalGridLineWidth)
+        bold_pen = wx.Pen((0, 0, 0), self.__BoldGridLineWidth)
+        event_total = w + h
+        #画横线
+        #第一行
+        dc.SetPen(bold_pen)
+        dc.DrawLine(0, 0, w, 0)
+        #最后一行
+        dc.DrawLine(0, h, w, h)
+        event_count = 2       
+        for row in range(1 , h):
+            #画当中的线
+            #普通线
+            cell = row % self.__StitchSize
+            if not cell:
+                if row / self.__StitchSize % self.__BoldGridLinePerStitch:
+                    dc.SetPen(normal_pen)
+                else:
+                #粗线
+                    dc.SetPen(bold_pen)
+                dc.DrawLine(0, row, w, row)
+            wx.PostEvent(self.__sender, PIStitchConvasGeneratingEvent(total=event_total, count=event_count))
+            event_count += 1
+        #画纵线
+        #第一列
+        dc.SetPen(bold_pen)
+        dc.DrawLine(0, 0, 0, h)
+        #最后一列
+        dc.DrawLine(w, 0, w, h)
+        event_count += 2
+        for col in range(1 , w):
+            #画当中的线
+            #普通线
+            cell = col % self.__StitchSize
+            if not cell:
+                if col / self.__StitchSize % self.__BoldGridLinePerStitch:
+                    dc.SetPen(normal_pen)
+                else:
+                #粗线
+                    dc.SetPen(bold_pen)
+                dc.DrawLine(col, 0, col, h)
+            wx.PostEvent(self.__sender, PIStitchConvasGeneratingEvent(total=event_total, count=event_count))
+            event_count += 1
+        return bitmap.ConvertToImage()
+    
+    def __GetPrintConvas(self):
+        '''
+        转换绣图，带边框,带标记
+        '''
+        p_im = self.GetPreviewImage()
+        mask_list = self.GetFlossMaskList()
+        source_im = self.GetStitchConvas()
+        w, h = p_im.GetWidth(), p_im.GetHeight()
+        dc = wx.MemoryDC()
+        bitmap = wx.BitmapFromImage(source_im.Copy())
+        dc.SelectObject(bitmap)
+        dc.SetFont(wx.Font(14,wx.FONTFAMILY_DEFAULT, wx.NORMAL, wx.FONTWEIGHT_NORMAL,underline=0,encoding=wx.FONTENCODING_CP932))
         event_total = w * h
         event_count = 1
-        if mask_dic:
-        #如果参数mask_dic存在的话，则表示这是在输出正式绣图
-            bit_map = wx.BitmapFromImage(im)
-            dc = wx.MemoryDC(bit_map)
-            bg_image = wx.EmptyImage(self.__StitchSize, self.__StitchSize)
-            if self.__args["DisabledBgColour"]:#如果禁止输出背景色，则输出白色
-                bg_image.SetRGBRect((0, 0, self.__StitchSize, self.__StitchSize), 255, 255, 255)
-            else:
-                bg_image.SetRGBRect((0, 0, self.__StitchSize, self.__StitchSize), self.__BackgroundColor[0], self.__BackgroundColor[1], self.__BackgroundColor[2])
-            bg_image = wx.BitmapFromImage(bg_image)
-            for j in range(h):
-                for i in range(w):
-                    #如果参数mask_dic存在的话，则表示这是在输出正式绣图
-                    if (source_im.GetRed(i, j), source_im.GetGreen(i, j), source_im.GetBlue(i, j)) == self.__BackgroundColor:
-                        dc_temp = wx.MemoryDC(bg_image)
+        for x in range(w):
+            for y in range(h):
+                rgb = (p_im.GetRed(x, y), p_im.GetGreen(x, y), p_im.GetBlue(x, y))
+                if rgb != self.__BackgroundColor:
+                    #不是背景色才有必要写标记
+                    symbol = mask_list[rgb][1]
+                    textsize = dc.GetTextExtent(symbol)
+                    position = ((self.__StitchSize - textsize[0]) // 2, (self.__StitchSize - textsize[1]) // 2)
+                    #如果颜色过于接近黑色，则用反色白色来填充
+                    if Common.GetRGBDistance(rgb, (0,0,0)) < 200:
+                        dc.SetTextForeground((255, 255, 255))
                     else:
-                        mask = mask_dic[(source_im.GetRed(i, j), source_im.GetGreen(i, j), source_im.GetBlue(i, j))]
-                        dc_temp = wx.MemoryDC(wx.BitmapFromImage(mask))
-                    dc.Blit(x, y, mask.GetSize()[0], mask.GetSize()[1], dc_temp, 0, 0)
-                    #加上绣格块宽度
-                    x = x + self.__StitchSize
-                    #如果下一列正好是新的一块开始格子，则横坐标必须加上粗线条宽度
-                    if (i + 1) % self.__BoldGridLinePerStitch:
-                        x = x + self.__NormalGridLineWidth
-                    else:
-                        #否则加上细线条
-                        x = x + self.__BoldGridLineWidth
-                    wx.PostEvent(self.__sender, PIPrintConvasGeneratingEvent(total=event_total, count=event_count))
-                    event_count += 1
-                #初始化横坐标
-                x = self.__BoldGridLineWidth
-                #加上绣格块宽度
-                y = y + self.__StitchSize
-                #如果下一列正好是新的一块开始格子，则纵坐标必须加上粗线条宽度
-                if (j + 1) % self.__BoldGridLinePerStitch:
-                    y = y + self.__NormalGridLineWidth
-                else:
-                    #否则加上细线条
-                    y = y + self.__BoldGridLineWidth
-            im = bit_map.ConvertToImage()
-        else:
-            #否则则是在输出预览图
-            for j in range(h):
-                for i in range(w):
-                    #否则则是在输出预览图
-                    im.SetRGBRect(wx.Rect(x, y, self.__StitchSize, self.__StitchSize), \
-                                          source_im.GetRed(i, j), source_im.GetGreen(i, j), source_im.GetBlue(i, j))
-                    #加上绣格块宽度
-                    x = x + self.__StitchSize
-                    #如果下一列正好是新的一块开始格子，则横坐标必须加上粗线条宽度
-                    if (i + 1) % self.__BoldGridLinePerStitch:
-                        x = x + self.__NormalGridLineWidth
-                    else:
-                        #否则加上细线条
-                        x = x + self.__BoldGridLineWidth
-                    wx.PostEvent(self.__sender, PIStitchConvasGeneratingEvent(total=event_total, count=event_count))
-                    event_count += 1
-                #初始化横坐标
-                x = self.__BoldGridLineWidth
-                #加上绣格块宽度
-                y = y + self.__StitchSize
-                #如果下一列正好是新的一块开始格子，则纵坐标必须加上粗线条宽度
-                if (j + 1) % self.__BoldGridLinePerStitch:
-                    y = y + self.__NormalGridLineWidth
-                else:
-                    #否则加上细线条
-                    y = y + self.__BoldGridLineWidth
-        return im
-    
+                        dc.SetTextForeground((0, 0, 0))
+                    dc.DrawText(symbol, x * self.__StitchSize + position[0], y * self.__StitchSize + position[1])                
+                wx.PostEvent(self.__sender, PIPrintConvasGeneratingEvent(total=event_total, count=event_count))
+                event_count += 1
+        dc.Destroy()
+        return bitmap.ConvertToImage()
+ 
     def GetFlossMaskList(self):
         '''
         根据用线统计列表，得到用线对应的符号列表
@@ -658,7 +683,8 @@ class CrossStitch():
         result = {}
         summary = self.GetFlossSummary()
         for k in range(len(summary)):
-            result[summary[k][0]] = self.__GetSymbolMask(summary[k][0], unichr(self.__Symbols[k]))
+            symbol = unichr(self.__Symbols[k])
+            result[summary[k][0]] = (self.__GetSymbolMask(summary[k][0], symbol), symbol)
         return result
     
     def __GetSymbolMask(self, rgb, symbol):
@@ -681,10 +707,11 @@ class CrossStitch():
         dc.DrawText(symbol, position[0], position[1])
         return im.ConvertToImage()
     
-    def __GetPrintPages(self, im):
+    def __GetPrintPages(self):
         '''
         分页最终图片
         '''
+        im = self.GetPrintConvas()
         __PageWith = 85 * self.__StitchSize
         __PageHeight = 120 * self.__StitchSize
         __BlankBarSize = 100 #旁边空白的空间大小
@@ -747,22 +774,22 @@ class CrossStitch():
                 dc.Clear()                
                 dc_temp.SelectObject(new_im)
                 #复制截取部分的图像到新建的位图上
-                dc.Blit(__BlankBarSize, __BlankBarSize, new_im.GetWidth(), new_im.GetHeight(), dc_temp, 0, 0)                
-                grid_width = (self.__StitchSize + self.__NormalGridLineWidth) * self.__BoldGridLinePerStitch + (self.__BoldGridLineWidth - self.__NormalGridLineWidth)
+                dc.Blit(__BlankBarSize, __BlankBarSize, new_im.GetWidth(), new_im.GetHeight(), dc_temp, 0, 0)        
+                grid_size = self.__StitchSize * 10
                 for x in range(x_start, x_end):
                     #描绘X轴
                     #当遍历到第10根格子线的时候，写上列数
-                    if not (x - self.__BoldGridLineWidth) % grid_width:
-                        value = str((x - self.__BoldGridLineWidth) * 10 // grid_width)                        
+                    if not x % grid_size:
+                        value = str(x / grid_size)                        
                         textsize = dc.GetTextExtent(value)
                         dc.DrawText(value, x - x_start + __BlankBarSize - textsize[0] // 2, __BlankBarSize - textsize[1])
                 for y in range(y_start, y_end):
                     #描绘Y轴
                     #当遍历到第10根格子线的时候，写上行数
-                    if not (y - self.__BoldGridLineWidth) % grid_width:
-                        value = str((y - self.__BoldGridLineWidth) * 10 // grid_width)
+                    if not y % grid_size:
+                        value = str(y / grid_size)
                         textsize = dc.GetTextExtent(value)
-                        dc.DrawText(value, __BlankBarSize - textsize[0] - 10, y - y_start + __BlankBarSize - textsize[1] // 2)
+                        dc.DrawText(value, __BlankBarSize - textsize[0] - 10, y + __BlankBarSize - y_start - textsize[1] // 2)
                 gcdc = wx.GCDC(dc)
                 gcdc.SetPen(wx.Pen((0, 0, 0, 128)))
                 gcdc.SetBrush(wx.Brush((0, 0, 0, 128)))
@@ -867,9 +894,9 @@ class CrossStitch():
         dc_temp = wx.MemoryDC()
         for k in floss_mask_list.iteritems():
             #画标记        
-            dc_temp.SelectObject(wx.BitmapFromImage(k[1]))
+            dc_temp.SelectObject(wx.BitmapFromImage(k[1][0]))
             #复制截取部分的图像到新建的位图上
-            dc.Blit(x, y, k[1].GetWidth(), k[1].GetHeight(), dc_temp, 0, 0)
+            dc.Blit(x, y, k[1][0].GetWidth(), k[1][0].GetHeight(), dc_temp, 0, 0)
             #画原图样
             x += self.__StitchSize + 5
             dc.SetPen(wx.Pen(k[0]))

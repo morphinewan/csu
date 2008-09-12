@@ -11,13 +11,12 @@ import lib.func as Common
 import lib.cross_stitch as cs
 from cs_definition import *
 
-class MainFrame(wx.Frame):
+class MainFrame(wx.MDIParentFrame):
     def __init__(
-            self, parent, ID, title, pos=wx.DefaultPosition,
-            size=wx.DefaultSize, style=wx.DEFAULT_FRAME_STYLE
+            self, parent, ID, title
             ):
         
-        wx.Frame.__init__(self, parent, ID, title, pos, size, style)   
+        wx.MDIParentFrame.__init__(self, parent, ID, title, size=(800, 600))   
         #菜单
         mb = wx.MenuBar()
         
@@ -37,7 +36,9 @@ class MainFrame(wx.Frame):
         mb.Append(view_menu, u"查看")
         
         debug_menu = wx.Menu()
-        debug_menu.Append(ID_MenuItem_Debug, "Debug")        
+        debug_menu.Append(ID_MenuItem_InitFlossMap, u"初始化颜色映射表")        
+        debug_menu.Append(ID_MenuItem_Debug, "Debug")
+        
         mb.Append(debug_menu, u"调试")
         
         self.SetMenuBar(mb)
@@ -98,6 +99,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnMenuClick, id=ID_MenuItem_ShowLogPanel)
         self.Bind(wx.EVT_MENU, self.OnMenuClick, id=ID_MenuItem_ShowFlossPanel)
         self.Bind(wx.EVT_MENU, self.OnDebug, id=ID_MenuItem_Debug)
+        self.Bind(wx.EVT_MENU, self.OnInitFlossMap, id=ID_MenuItem_InitFlossMap)
         
         self.Bind(wx.EVT_TOOL, self.OnFileOpen, id=ID_ToolBar_OpenFile)
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnMenuClick, id=ID_ToolBar_ShowOptionPanel)
@@ -280,7 +282,7 @@ class MainFrame(wx.Frame):
         scale = self.__work_frame.ShowImage(self.__cs[0].GetPreviewImage(), 1)
         self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("%d%%" % (scale*100))
         #显示绣线面板
-        self.__floss_panel.ShowFlossIno(self.__cs[0].GetFlossSummary(), self.__cs[0].GetFlossMaskList())
+        self.__floss_panel.ShowFlossInfo(self.__cs[0].GetFlossSummary(), self.__cs[0].GetFlossMaskList())
         self.__work_frame.Show()
     
     def OnPreviewImageGenerateStart(self, event):
@@ -328,19 +330,17 @@ class MainFrame(wx.Frame):
         '''
         保存导出文件
         '''
-        if not self.__cs[0].CanSave():
-            Common.ShowAlert(self, u"您必须先执行预览功能。")
-            return
-        dlg = wx.DirDialog(self, u"请选择保存文件路径:",
-                          style=wx.DD_DEFAULT_STYLE
-                           | wx.DD_DIR_MUST_EXIST
-                           | wx.DD_CHANGE_DIR,
-                           defaultPath=Application_Settings["Default_Directory"]
-                           )
-
-        if dlg.ShowModal() == wx.ID_OK:
-            threading.Thread(target=self.__cs[0].SaveCrossStitch, args=(dlg.GetPath(),)).start()
-        dlg.Destroy()
+        if self.__option_panel.ValidateData():
+            dlg = wx.DirDialog(self, u"请选择保存文件路径:",
+                              style=wx.DD_DEFAULT_STYLE
+                               | wx.DD_DIR_MUST_EXIST
+                               | wx.DD_CHANGE_DIR,
+                               defaultPath=Application_Settings["Default_Directory"]
+                               )
+    
+            if dlg.ShowModal() == wx.ID_OK:
+                threading.Thread(target=self.__cs[0].SaveCrossStitch, args=(dlg.GetPath(),self.__option_panel.GetProperties())).start()
+            dlg.Destroy()
                 
     def OnImageZoom(self, event):
         '''
@@ -410,11 +410,12 @@ class MainFrame(wx.Frame):
             #加载图像
             if self.__cs:
                 pos = (100, 95)               
-                self.__work_frame = WorkFrame(self, -1, u"图片工作区",pos=pos, size=(wx.DisplaySize()[0] - 200, wx.DisplaySize()[1]-150))
+                self.__work_frame = WorkFrame(self, -1, u"图片工作区")
                 self.FindWindowById(ID_ToolBar_ZoomImage).SetValue('100%')
                 self.__EnableImageTool(1)
                 scale = self.__work_frame.ShowImage(self.__cs[0].GetSourceImage(), 1)                
                 self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("%d%%" % (scale*100))
+                self.__work_frame.Maximize()
                 self.__work_frame.Show()
         dlg.Destroy()
     
@@ -425,6 +426,14 @@ class MainFrame(wx.Frame):
         self.__EnableImageTool(0)
         self.__log_panel.Clear()
         self.__floss_panel.Clear()
+    
+    def OnInitFlossMap(self, event):
+        '''
+         初始化颜色映射表
+        '''
+#        self.__flossmap.Initialize()
+#        self.__flossmap.SaveData()
+        pass
     
     def __EnableImageTool(self, flg):
         '''
@@ -458,7 +467,7 @@ class MainFrame(wx.Frame):
     def OnViewChange(self, event):
         scale = None
         if event.GetId() == ID_ToolBar_ShowImageFormat1:
-            scale = self.__work_frame.ShowImage(self.__cs[0].GetPreviewImage(), 1)
+            scale = self.__work_frame.ShowImage(self.__cs[0].GetPreviewImage(), 1)                
         elif event.GetId() == ID_ToolBar_ShowImageFormat2:
             scale = self.__work_frame.ShowImage(self.__cs[0].GetStitchConvas(), 1)
         elif event.GetId() == ID_ToolBar_ShowImageFormat3:
@@ -467,6 +476,7 @@ class MainFrame(wx.Frame):
             self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("%d%%" % (scale*100))
     
     def OnKeyDown(self, event):
+        print "mother key down %s" % event.GetKeyCode()
 #        print event.GetKeyCode()
         if event.GetModifiers() == wx.MOD_CONTROL and event.GetKeyCode() in (65, 79):
             #打开文件 ctrl + a  or ctrl + o
@@ -508,7 +518,7 @@ class MainFrame(wx.Frame):
             
     
     def OnDebug(self, event):
-        DebugFrame(self).Show()
+        self.__work_frame.ShowImage(self.__cs[0].__GetStitchConvas2())
         
     def __InitLayout(self):
         self.__option_panel.Hide()
@@ -796,7 +806,7 @@ class FlossFrame(wx.Frame):
         if self.floss_table.GetNumberRows():
             self.floss_table.DeleteRows(0, self.floss_table.GetNumberRows())
     
-    def ShowFlossIno(self, fs, masklist):
+    def ShowFlossInfo(self, fs, masklist):
         self.floss_table.ClearGrid()
         if self.floss_table.GetNumberRows():
             self.floss_table.DeleteRows(0, self.floss_table.GetNumberRows())
@@ -809,7 +819,7 @@ class FlossFrame(wx.Frame):
             self.floss_table.SetCellValue(i, 1, f.description)
             self.floss_table.SetCellAlignment(i, 1, wx.ALIGN_LEFT, wx.ALIGN_CENTRE)
             mask = masklist[(f.rgb[0], f.rgb[1], f.rgb[2],)]
-            self.floss_table.SetCellRenderer(i, 2, self.GridCellMaskRenderer(mask))
+            self.floss_table.SetCellRenderer(i, 2, self.GridCellMaskRenderer(mask[0]))
             self.floss_table.SetCellBackgroundColour(i, 2, f.rgb)
             self.floss_table.SetCellAlignment(i, 2, wx.ALIGN_CENTRE, wx.ALIGN_CENTRE)
             self.floss_table.SetCellValue(i, 3, str(floss[1]))
@@ -829,29 +839,21 @@ class FlossFrame(wx.Frame):
             x = rect.x + (rect.GetWidth() - self.mask.GetSize()[0]) / 2
             y = rect.y + (rect.GetHeight() - self.mask.GetSize()[1]) / 2
             dc.Blit(x, y, self.mask.GetSize()[0], self.mask.GetSize()[1], dc_temp, 0, 0)
-
-class WorkFrame(wx.Frame):
-    def __init__(self, parent, ID, title, pos=wx.DefaultPosition,
-            size=wx.DefaultSize, style=wx.DEFAULT_FRAME_STYLE
-            ):        
-        wx.Frame.__init__(self, parent, ID, title, pos, size, style)
+            
+class WorkFrame(wx.MDIChildFrame):
+    def __init__(self, parent, ID, title):        
+        wx.MDIChildFrame.__init__(self, parent, ID, title)
         self.Bind(wx.EVT_SET_FOCUS, self.OnSetFocus)
         self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel)
         #窗口关闭
         self.Bind(wx.EVT_CLOSE, self.OnWindowClose)
-        #变大的时候，自动隐藏主窗口
-        self.Bind(wx.EVT_SIZE, self.OnResize)
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+#        #设置图标
+#        self.SetIcon(IMAGE_APP_CHILD_ICON.GetIcon())
         
     def OnKeyDown(self, event):
+        print "child key down %s" % event.GetKeyCode()
         self.Parent.ProcessEvent(event)
-        
-    def OnResize(self, event):
-        if self.IsMaximized():
-            self.Parent.Hide()
-        else:
-            self.Parent.Show()
-        event.Skip()
         
     def OnWindowClose(self, event):
         if not self.Parent.IsShown():
@@ -949,35 +951,10 @@ class WorkFrame(wx.Frame):
             
 class Application(wx.App):
     def OnInit(self):
-        size = (wx.DisplaySize()[0], 90)
-        win = MainFrame(None, -1, u"十字绣转换工具 morphinewan荣誉出品",pos=(0, 0), size=size,
-                  style = wx.MINIMIZE_BOX | wx.SYSTEM_MENU | wx.CAPTION | wx.CLOSE_BOX | wx.CLIP_CHILDREN | wx.STAY_ON_TOP)
+        win = MainFrame(None, -1, u"十字绣转换工具 morphinewan荣誉出品")
         self.SetTopWindow(win)
         win.Show(True)
         return True
-
-class DebugFrame(wx.Frame):
-    def __init__(self, parent):
-        wx.Frame.__init__(self, parent, -1, "debug form",pos=(200,300),size=(800, 600))
-        self.panel = wx.Panel(self, -1, size=self.GetSize())
-        
-        bsizer = wx.BoxSizer(wx.VERTICAL)
-        bsizer.Add(self.panel, 0, wx.GROW|wx.ALL)
-        self.SetSizer(bsizer)
-        self.SetAutoLayout(True)
-        
-        self.panel.Bind(wx.EVT_PAINT, self.OnPaint)
-
-
-    def OnPaint(self, evt):        
-        dc = wx.PaintDC(self.panel)
-        dc.SetBackground(wx.Brush("WHITE"))
-#        dc.Clear()
-        
-        dc.SetFont(wx.Font(16, wx.SWISS, wx.NORMAL, wx.BOLD, True))
-        dc.DrawText("Bitmap alpha blending (on all ports but gtk+ 1.2)",
-                    25,25)
-    
 
 def main():
     Application(0).MainLoop()
