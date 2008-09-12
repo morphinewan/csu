@@ -15,7 +15,7 @@ ID_MenuItem_ShowFlossPanel = wx.NewId()
 #ID_MenuItem_ShowImageFormat1 = wx.NewId()
 #ID_MenuItem_ShowImageFormat2 = wx.NewId()
 #ID_MenuItem_ShowImageFormat3 = wx.NewId()
-
+ID_MenuItem_InitFlossMap = wx.NewId()
 ID_MenuItem_Debug = wx.NewId()
 #工具栏
 ID_ToolBar_ShowOptionPanel = wx.NewId()
@@ -149,7 +149,7 @@ TOOLBAR_ICON_03 = PyEmbeddedImage(
     "UVqjpEIqhZSKIJD4gY8dCjE68kY/e/rkFvB+39fROTAw8CmVSiWkUmitdwa0ViilUVpjGAbf"
     "5+e+zc7M9O4m/wd47SfAIdtXFgAAAABJRU5ErkJggg==")
 
-TOOLBAR_ICON_04 = PyEmbeddedImage(
+IMAGE_APP_CHILD_ICON = PyEmbeddedImage(
     "iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAABHNCSVQICAgIfAhkiAAAC3ZJ"
     "REFUaIHFmt+PJNdVxz/n3lvV3TM7s7MbZ/2T+EeEE2TLQYqF8mDEhkRCvPAODygoMUoEPCCk"
     "5A2Q/wFkCQLKgyV4SCQSAgIpCRaYZQUksaKsUSIUS44dY6+9u1nPr52e7uqqew4P91Z1de/0"
