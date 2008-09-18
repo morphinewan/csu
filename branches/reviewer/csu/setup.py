@@ -1,8 +1,7 @@
 from distutils.core import setup
 import py2exe
-setup(windows=['CrossStitchMakerGUI.py',
-               {"script":"CrossStitchMakerGUI.py",
-                "version":"1.0",
-                "company_name":"morphinewan.com",
-                "icon_resources":[(1, "favicon.ico")]}],
-      data_files=[("Color_Table", ["Color_Table/DMC.txt"]),])
+setup(windows=['cs.py',
+               {"script":"cs.py",
+                "version":"0.5",
+                "company_name":"morphinewan.com"}],
+      data_files=[("", ["colortable.dat"]),])
