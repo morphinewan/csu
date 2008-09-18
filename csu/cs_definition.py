@@ -11,12 +11,6 @@ ID_MenuItem_About = wx.NewId()
 ID_MenuItem_ShowOptionPanel = wx.NewId()
 ID_MenuItem_ShowLogPanel = wx.NewId()
 ID_MenuItem_ShowFlossPanel = wx.NewId()
-
-#ID_MenuItem_ShowImageFormat1 = wx.NewId()
-#ID_MenuItem_ShowImageFormat2 = wx.NewId()
-#ID_MenuItem_ShowImageFormat3 = wx.NewId()
-ID_MenuItem_InitFlossMap = wx.NewId()
-ID_MenuItem_Debug = wx.NewId()
 #工具栏
 ID_ToolBar_ShowOptionPanel = wx.NewId()
 ID_ToolBar_ShowLogPanel = wx.NewId()

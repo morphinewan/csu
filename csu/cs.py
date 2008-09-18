@@ -34,13 +34,7 @@ class MainFrame(wx.MDIParentFrame):
         menu_item = sub_menu.AppendCheckItem(ID_MenuItem_ShowFlossPanel, u"绣线统计面板", u"打开或者关闭绣线统计面板")
         view_menu.AppendSubMenu(sub_menu, u"面板")
         mb.Append(view_menu, u"查看")
-        
-        debug_menu = wx.Menu()
-        debug_menu.Append(ID_MenuItem_InitFlossMap, u"初始化颜色映射表")        
-        debug_menu.Append(ID_MenuItem_Debug, "Debug")
-        
-        mb.Append(debug_menu, u"调试")
-        
+               
         self.SetMenuBar(mb)
         
         #Toolbar
@@ -76,7 +70,6 @@ class MainFrame(wx.MDIParentFrame):
         
         #添加自定义Button
         toolbar.AddControl(wx.Button(toolbar, ID_ToolBar_GeneratePreview, u"预览"))
-        toolbar.AddControl(wx.Button(toolbar, ID_ToolBar_Save, u"保存"))
         toolbar.Realize()
         self.SetToolBar(toolbar)
         
@@ -98,15 +91,12 @@ class MainFrame(wx.MDIParentFrame):
         self.Bind(wx.EVT_MENU, self.OnMenuClick, id=ID_MenuItem_ShowOptionPanel)
         self.Bind(wx.EVT_MENU, self.OnMenuClick, id=ID_MenuItem_ShowLogPanel)
         self.Bind(wx.EVT_MENU, self.OnMenuClick, id=ID_MenuItem_ShowFlossPanel)
-        self.Bind(wx.EVT_MENU, self.OnDebug, id=ID_MenuItem_Debug)
-        self.Bind(wx.EVT_MENU, self.OnInitFlossMap, id=ID_MenuItem_InitFlossMap)
-        
+     
         self.Bind(wx.EVT_TOOL, self.OnFileOpen, id=ID_ToolBar_OpenFile)
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnMenuClick, id=ID_ToolBar_ShowOptionPanel)
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnMenuClick, id=ID_ToolBar_ShowLogPanel)
         self.Bind(wx.EVT_TOGGLEBUTTON, self.OnMenuClick, id=ID_ToolBar_ShowFlossPanel)
         self.Bind(wx.EVT_BUTTON , self.OnGeneratePreview, id=ID_ToolBar_GeneratePreview)
-        self.Bind(wx.EVT_BUTTON , self.OnSave, id=ID_ToolBar_Save)
         self.Bind(wx.EVT_BUTTON, self.OnViewChange, id=ID_ToolBar_ShowImageFormat1)
         self.Bind(wx.EVT_BUTTON, self.OnViewChange, id=ID_ToolBar_ShowImageFormat2)
         self.Bind(wx.EVT_BUTTON, self.OnViewChange, id=ID_ToolBar_ShowImageFormat3)
@@ -325,22 +315,6 @@ class MainFrame(wx.MDIParentFrame):
         if self.__option_panel.ValidateData():
             self.FindWindowById(ID_ToolBar_ZoomImage).SetValue("100%")
             threading.Thread(target=self.__cs[0].GeneratePreviewImage, args=(self.__option_panel.GetProperties(),)).start()
-    
-    def OnSave(self, event):
-        '''
-        保存导出文件
-        '''
-        if self.__option_panel.ValidateData():
-            dlg = wx.DirDialog(self, u"请选择保存文件路径:",
-                              style=wx.DD_DEFAULT_STYLE
-                               | wx.DD_DIR_MUST_EXIST
-                               | wx.DD_CHANGE_DIR,
-                               defaultPath=Application_Settings["Default_Directory"]
-                               )
-    
-            if dlg.ShowModal() == wx.ID_OK:
-                threading.Thread(target=self.__cs[0].SaveCrossStitch, args=(dlg.GetPath(),self.__option_panel.GetProperties())).start()
-            dlg.Destroy()
                 
     def OnImageZoom(self, event):
         '''
@@ -444,7 +418,6 @@ class MainFrame(wx.MDIParentFrame):
         self.FindWindowById(ID_ToolBar_ZoomImage).Enable(flg)
         self.FindWindowById(ID_ToolBar_ZoomImageSpin).Enable(flg)
         self.FindWindowById(ID_ToolBar_GeneratePreview).Enable(flg)
-        self.FindWindowById(ID_ToolBar_Save).Enable(flg)
         self.FindWindowById(ID_ToolBar_ShowImageFormat1).Enable(flg)
         self.FindWindowById(ID_ToolBar_ShowImageFormat2).Enable(flg)
         self.FindWindowById(ID_ToolBar_ShowImageFormat3).Enable(flg)
