@@ -768,7 +768,7 @@ class FlossFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.OnWindowClose)
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
         
-        self.floss_table.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.OnPopupMenu)
+#        self.floss_table.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.OnPopupMenu)
         
     def OnPopupMenu(self, event):
         '''
@@ -837,7 +837,7 @@ class FlossFrame(wx.Frame):
 class WorkFrame(wx.MDIChildFrame):
     def __init__(self, parent, ID, title):        
         wx.MDIChildFrame.__init__(self, parent, ID, title)
-        self.Bind(wx.EVT_SET_FOCUS, self.OnSetFocus)
+#        self.Bind(wx.EVT_SET_FOCUS, self.OnSetFocus)
         self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel)
         #窗口关闭
         self.Bind(wx.EVT_CLOSE, self.OnWindowClose)
