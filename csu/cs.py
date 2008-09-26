@@ -610,13 +610,13 @@ class OptionFrame(wx.Frame):
         
         input = wx.TextCtrl(self, ID_Option_Width, str(props["Width"]), style=wx.TE_RIGHT, size=(45,20))
         label = wx.StaticText(self, -1, u"宽度")
-        input.SetMaxLength(3)
+        input.SetMaxLength(10)
         sizer.Add(label,pos=(6,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
         sizer.Add(input,pos=(6,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
         
         input = wx.TextCtrl(self, ID_Option_Height, str(props["Height"]), style=wx.TE_RIGHT, size=(45,20))
         label = wx.StaticText(self, -1, u"高度")
-        input.SetMaxLength(3)
+        input.SetMaxLength(10)
         sizer.Add(label,pos=(7,0), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALIGN_CENTER_VERTICAL | wx.ALL, border=1)
         sizer.Add(input,pos=(7,1), flag=wx.ALIGN_LEFT | wx.FIXED_MINSIZE | wx.ALL , border=1)
         
@@ -714,7 +714,7 @@ class OptionFrame(wx.Frame):
                 obj.SetSelection(-1, -1)
                 return False
         for id in (ID_Option_MaxColourNum, ID_Option_MinFlossNum, ID_Option_MixColourDist, 
-                   ID_Option_Width, ID_Option_Height, ID_Option_CT):
+                   ID_Option_CT):
             obj = self.FindWindowById(id)
             if not Common.IsIntOrZero(obj.GetValue()):
                 Common.ShowError(self, u"请输入零或者其他任意正整数。")

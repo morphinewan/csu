@@ -338,7 +338,7 @@ class CrossStitch():
         #没有设置输出大小，默认为宽度200格
         width = 200
         height = 200
-        p_size = (self.__args["Width"], self.__args["Height"])
+        p_size = [self.__args["Width"], self.__args["Height"]]
         if p_size[0].count("cm") > 0:
             #厘米为长度的场合,折算一下，厘米折算成英寸
             p_size[0] = p_size[0].replace("cm", "")
