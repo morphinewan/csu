@@ -394,7 +394,7 @@ class CrossStitch():
                 pos += 1
         #保存颜色映射表
         self.__flossmap.SaveData()
-        return im
+        return im                
         
     def __GetMinDistanceColor(self, red, green, blue):
         '''
@@ -416,6 +416,32 @@ class CrossStitch():
             #将该映射关系补充道颜色映射表中
             self.__flossmap.AppendData((red, green, blue), min[0])
             return min[0]
+        
+#    def __GetMinDistanceColor(self, red, green, blue):
+#        '''
+#        求颜色表中距离目标颜色最短的颜色
+#        '''
+#        if self.__flossmap.GetValue((red, green, blue)):
+#            #如果在颜色映射表里面已经存在，则直接返回该颜色
+#            return self.__flossmap.GetValue((red, green, blue))
+#        else:
+#            if COLOR_TABLE.has_key((red, green, blue)):
+#                return (red, green, blue)
+#            else:
+#                for dist in range(0, 256): 
+#                    for i in range((lambda x: (x -dist <= 0 and [0] or [x-dist])[0])(red), 
+#                                (lambda x: (x + dist >= 255 and [255] or [x + dist])[0])(red) + 1):
+#                        for j in range((lambda x: (x -dist <= 0 and [0] or [x-dist])[0])(green), 
+#                                (lambda x: (x + dist >= 255 and [255] or [x + dist])[0])(green) + 1):
+#                            for k in range((lambda x: (x -dist <= 0 and [0] or [x-dist])[0])(blue), 
+#                                (lambda x: (x + dist >= 255 and [255] or [x + dist])[0])(blue) + 1):
+#                                
+#                                if COLOR_TABLE.has_key((i, j, k)):
+#                                    print "bingo"
+#                                    return (i, j, k)
+#                                else:
+#                                    print (i, j, k)
+            
     
     def GetFlossSummary(self):
         '''
@@ -880,7 +906,7 @@ class CrossStitch():
             if COLOR_TABLE.has_key(k[0]) == 0:
                 raise Exception("Can't found floss defination in map. Something wrong maybe happend.")
             floss = COLOR_TABLE.get(k[0])
-            skeins = k[1] % 1800 == 0 and (k[1] / 1800,)[0] or k[1] / 1800 + 1
+            skeins = (k[1] % 1800 == 0 and [k[1] / 1800] or [k[1] / 1800 + 1])[0]
             result += "\"%s\",\"%s\",\"%d\",\"%0.2f\",\"%d\"\n" % \
                 (floss.id, floss.description, k[1], float(k[1]) / 1800, skeins)
             count += skeins
